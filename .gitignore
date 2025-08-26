@@ -1,0 +1,6 @@
+Output/*.xlsx
+/Output
+/__pycache__
+__pycache__/*
+/.venv
+/matching_logic/__pycache__
