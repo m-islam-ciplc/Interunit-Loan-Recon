@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+/checkpoints
+Resources/New Geo to Steel_MATCHED.xlsx
+Resources/New Steel to Geo_MATCHED.xlsx
