@@ -70,7 +70,7 @@ class ManualMatchingWindow(QDialog):
         )
         
         # Set minimum size and open maximized
-        self.setMinimumSize(800, 400)  # Minimum size to ensure usability
+        self.setMinimumSize(800, 600)  # Increased minimum height for taller tables
         # Open window maximized
         self.showMaximized()
         
@@ -117,7 +117,7 @@ class ManualMatchingWindow(QDialog):
         file1_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         # Set scrollbar policies
         file1_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        file1_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        file1_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # Disable vertical scrollbar - table will auto-resize to fit all rows
         # Set font size to 8pt for table content (not bold)
         table_font = QFont()
         table_font.setPointSize(8)
@@ -149,7 +149,7 @@ class ManualMatchingWindow(QDialog):
         file2_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         # Set scrollbar policies - EXACTLY like file1_table
         file2_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        file2_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        file2_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)  # Disable vertical scrollbar - table will auto-resize to fit all rows
         # Set font size to 8pt for table content (not bold)
         table_font = QFont()
         table_font.setPointSize(8)
@@ -387,6 +387,25 @@ class ManualMatchingWindow(QDialog):
         
         # Use QTimer to adjust row heights after layout is complete
         QTimer.singleShot(10, adjust_row_heights)
+        
+        # Calculate total table height needed to fit all rows (no scrollbar)
+        def set_table_height_to_fit_all_rows():
+            # Get header height
+            header_height = table.horizontalHeader().height()
+            if header_height == 0:
+                # If header height is 0, use a default estimate
+                header_height = font_metrics.height() + 8
+            # Calculate total row heights
+            total_row_height = 0
+            for row_idx in range(num_rows):
+                total_row_height += table.rowHeight(row_idx)
+            # Set minimum and maximum height to fit all rows + header + small margin
+            total_height = header_height + total_row_height + 2  # +2 for small margin
+            table.setMinimumHeight(total_height)
+            table.setMaximumHeight(total_height)  # Also set max to prevent expansion beyond content
+        
+        # Schedule height adjustment after row heights are set (with longer delay to ensure all adjustments are complete)
+        QTimer.singleShot(100, set_table_height_to_fit_all_rows)
     
     def on_confirm_match(self):
         """Handle user confirmation of a match."""
