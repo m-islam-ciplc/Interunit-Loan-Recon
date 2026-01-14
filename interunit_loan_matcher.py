@@ -7,8 +7,9 @@ from openpyxl.styles import Alignment
 import openpyxl
 from openpyxl import load_workbook
 from matching_logic import (
-    LCMatchingLogic, POMatchingLogic, USDMatchingLogic,
-    InterunitLoanMatcher, AggregatedPOMatchingLogic, NarrationMatchingLogic
+    LCMatchingLogic, POMatchingLogic, USDMatchingLogic, 
+    InterunitLoanMatcher, AggregatedPOMatchingLogic, NarrationMatchingLogic,
+    FinalSettlementMatchingLogic
 )
 from transaction_block_identifier import TransactionBlockIdentifier
 
@@ -43,6 +44,7 @@ class   ExcelTransactionMatcher:
         self.interunit_loan_matcher = InterunitLoanMatcher(self.block_identifier)
         self.aggregated_po_matching_logic = AggregatedPOMatchingLogic(self.block_identifier)
         self.narration_matching_logic = NarrationMatchingLogic(self.block_identifier)
+        self.settlement_matching_logic = FinalSettlementMatchingLogic(self.block_identifier)
         
         # Performance optimization caches
         self._block_header_cache1 = {}
@@ -407,45 +409,45 @@ class   ExcelTransactionMatcher:
         """ULTRA-OPTIMIZED: Pre-filter by amount matching, then run matching logic only on filtered records."""
         
         print("\n" + "="*70)
-        print("🚀 ULTRA-OPTIMIZED: PRE-FILTER BY AMOUNT MATCHING")
+        print("START: ULTRA-OPTIMIZED: PRE-FILTER BY AMOUNT MATCHING")
         print("="*70)
         print("Step 1: Find transaction blocks where lender debit = borrower credit")
         print("Step 2: Save those records in filtered DataFrames")
         print("Step 3: Run matching logic only on filtered records")
         print("This eliminates unnecessary processing of non-matching amounts.")
         
-        print(f"\n📊 INITIAL DATA:")
+        print(f"\n[STATS] INITIAL DATA:")
         print(f"File 1: {len(transactions1)} transactions, {len(blocks1)} blocks")
         print(f"File 2: {len(transactions2)} transactions, {len(blocks2)} blocks")
         
         # STEP 1: Pre-filter by amount matching
-        print("\n🔍 STEP 1: PRE-FILTERING BY AMOUNT MATCHING...")
+        print("\n[SEARCH] STEP 1: PRE-FILTERING BY AMOUNT MATCHING...")
         filtered_records1, filtered_records2 = self._prefilter_by_amount_matching(
             transactions1, transactions2, blocks1, blocks2
         )
         
-        print(f"✅ PRE-FILTERING COMPLETE:")
+        print(f"[OK] PRE-FILTERING COMPLETE:")
         print(f"  - Filtered File 1: {len(filtered_records1)} records")
         print(f"  - Filtered File 2: {len(filtered_records2)} records")
         print(f"  - Reduction: {len(transactions1) - len(filtered_records1)} records eliminated from File 1")
         print(f"  - Reduction: {len(transactions2) - len(filtered_records2)} records eliminated from File 2")
         
         # STEP 2: Extract data only from filtered records
-        print("\n🔍 STEP 2: EXTRACTING DATA FROM FILTERED RECORDS...")
+        print("\n[SEARCH] STEP 2: EXTRACTING DATA FROM FILTERED RECORDS...")
         filtered_lc1, filtered_lc2, filtered_po1, filtered_po2, filtered_inter1, filtered_inter2, filtered_usd1, filtered_usd2 = self._extract_data_from_filtered_records(
             filtered_records1, filtered_records2, lc_numbers1, lc_numbers2, po_numbers1, po_numbers2,
             interunit_accounts1, interunit_accounts2, usd_amounts1, usd_amounts2
         )
         
         # STEP 3: Run matching logic only on filtered records
-        print("\n🔍 STEP 3: RUNNING MATCHING LOGIC ON FILTERED RECORDS...")
+        print("\n[SEARCH] STEP 3: RUNNING MATCHING LOGIC ON FILTERED RECORDS...")
         all_matches = self._run_matching_on_filtered_records(
             filtered_records1, filtered_records2, filtered_lc1, filtered_lc2, 
             filtered_po1, filtered_po2, filtered_inter1, filtered_inter2, 
             filtered_usd1, filtered_usd2
         )
         
-        print(f"\n📈 ULTRA-OPTIMIZED MATCHING RESULTS:")
+        print(f"\n[RESULTS] ULTRA-OPTIMIZED MATCHING RESULTS:")
         print(f"Total matches found: {len(all_matches)}")
         print(f"Processing efficiency: {len(all_matches)} matches from {len(filtered_records1) + len(filtered_records2)} filtered records")
         
@@ -631,7 +633,7 @@ class   ExcelTransactionMatcher:
                             **match_data
                         }
                         all_matches.append(match)
-                        print(f"    ✅ {match_type} match found: Amount {amount}")
+                        print(f"    [OK] {match_type} match found: Amount {amount}")
                         break  # Move to next amount after first match
         
         return all_matches
@@ -671,7 +673,7 @@ class   ExcelTransactionMatcher:
                     self._performance_stats['matches_found'] += 1
                     return logic_name, match_result
             except Exception as e:
-                print(f"⚠️ Warning: {logic_name} matching failed: {e}")
+                print(f"[WARNING] Warning: {logic_name} matching failed: {e}")
                 continue
         
         return None, {}
@@ -738,23 +740,23 @@ class   ExcelTransactionMatcher:
             'enabled': enabled,
             'description': description
         }
-        print(f"✅ Added matching logic: {name} (Priority: {priority}, Enabled: {enabled})")
+        print(f"[OK] Added matching logic: {name} (Priority: {priority}, Enabled: {enabled})")
     
     def enable_matching_logic(self, name):
         """ULTRA-OPTIMIZED: Enable a matching logic."""
         if name in self._matching_logic_registry:
             self._matching_logic_registry[name]['enabled'] = True
-            print(f"✅ Enabled matching logic: {name}")
+            print(f"[OK] Enabled matching logic: {name}")
         else:
-            print(f"❌ Matching logic not found: {name}")
+            print(f"[ERROR] Matching logic not found: {name}")
     
     def disable_matching_logic(self, name):
         """ULTRA-OPTIMIZED: Disable a matching logic."""
         if name in self._matching_logic_registry:
             self._matching_logic_registry[name]['enabled'] = False
-            print(f"✅ Disabled matching logic: {name}")
+            print(f"[OK] Disabled matching logic: {name}")
         else:
-            print(f"❌ Matching logic not found: {name}")
+            print(f"[ERROR] Matching logic not found: {name}")
     
     def get_matching_logic_status(self):
         """ULTRA-OPTIMIZED: Get status of all matching logics."""
@@ -775,7 +777,7 @@ class   ExcelTransactionMatcher:
                            len(self._amount_cache))
         
         if total_cache_size > self._max_cache_size * self._cache_cleanup_threshold:
-            print(f"🧹 Cleaning up caches (size: {total_cache_size})...")
+            print(f"  Cleaning up caches (size: {total_cache_size})...")
             
             # Keep only the most recent 50% of entries
             keep_size = self._max_cache_size // 2
@@ -798,7 +800,7 @@ class   ExcelTransactionMatcher:
                 items = list(self._amount_cache.items())
                 self._amount_cache = dict(items[-keep_size:])
             
-            print(f"✅ Cache cleanup completed (new size: {len(self._block_pair_cache) + len(self._block_header_cache) + len(self._narration_cache) + len(self._amount_cache)})")
+            print(f"[OK] Cache cleanup completed (new size: {len(self._block_pair_cache) + len(self._block_header_cache) + len(self._narration_cache) + len(self._amount_cache)})")
     
     def get_performance_stats(self):
         """ULTRA-OPTIMIZED: Get performance statistics."""
@@ -813,27 +815,27 @@ class   ExcelTransactionMatcher:
             'cache_misses': 0,
             'processing_time': 0
         }
-        print("✅ Performance statistics reset")
+        print("[OK] Performance statistics reset")
     
     def optimize_for_large_files(self):
         """ULTRA-OPTIMIZED: Apply additional optimizations for large files."""
-        print("🚀 Applying large file optimizations...")
+        print("START: Applying large file optimizations...")
         
         # Increase cache sizes for large files
         self._max_cache_size = 50000
         
         # Enable more aggressive pre-filtering
-        print("✅ Large file optimizations applied")
+        print("[OK] Large file optimizations applied")
     
     def optimize_for_small_files(self):
         """ULTRA-OPTIMIZED: Apply optimizations for small files."""
-        print("🚀 Applying small file optimizations...")
+        print("START: Applying small file optimizations...")
         
         # Reduce cache sizes for small files
         self._max_cache_size = 1000
         
         # Disable some heavy optimizations
-        print("✅ Small file optimizations applied")
+        print("[OK] Small file optimizations applied")
         
     def _initialize_matching_logic_registry(self):
         """Initialize the matching logic registry for maximum performance and future scalability."""
@@ -862,8 +864,14 @@ class   ExcelTransactionMatcher:
                 'enabled': True,
                 'description': 'Interunit account matching'
             },
-            'USD': {
+            'Settlement': {
                 'priority': 5,
+                'function': self._match_settlement_ultra_optimized,
+                'enabled': True,
+                'description': 'Final Settlement ID matching'
+            },
+            'USD': {
+                'priority': 6,
                 'function': self._match_usd_ultra_optimized,
                 'enabled': True,
                 'description': 'USD amount matching'
@@ -911,7 +919,7 @@ class   ExcelTransactionMatcher:
                     self._performance_stats['matches_found'] += 1
                     return logic_name, match_result
             except Exception as e:
-                print(f"⚠️ Warning: {logic_name} matching failed: {e}")
+                print(f"[WARNING] Warning: {logic_name} matching failed: {e}")
                 continue
         
         # No match found
@@ -976,6 +984,37 @@ class   ExcelTransactionMatcher:
         
         if lender_interunit and borrower_interunit and lender_interunit == borrower_interunit:
             return {'Interunit_Account': lender_interunit}
+        return None
+
+    def _match_settlement_ultra_optimized(self, block_data, amount):
+        """ULTRA-OPTIMIZED: Final Settlement ID matching with maximum performance."""
+        lender_narration = block_data['lender_narration']
+        borrower_narration = block_data['borrower_narration']
+        
+        # Extract IDs from both narrations
+        lender_ids = self.settlement_matching_logic.extract_ids(lender_narration)
+        borrower_ids = self.settlement_matching_logic.extract_ids(borrower_narration)
+        
+        # Find common IDs
+        common_ids = lender_ids.intersection(borrower_ids)
+        
+        if common_ids:
+            matched_id = list(common_ids)[0]
+            has_keyword1 = self.settlement_matching_logic.has_settlement_keyword(lender_narration)
+            has_keyword2 = self.settlement_matching_logic.has_settlement_keyword(borrower_narration)
+            
+            audit_info = f"Settlement Match (ID: {matched_id})"
+            if has_keyword1 or has_keyword2:
+                audit_info += " - 'Final Settlement' keyword found"
+                
+            return {
+                'Employee_ID': matched_id,
+                'Audit_Info': audit_info,
+                'File1_Amount': amount,
+                'File2_Amount': amount,
+                'File1_Type': 'Lender' if block_data['lender_file'] == 1 else 'Borrower',
+                'File2_Type': 'Lender' if block_data['borrower_file'] == 1 else 'Borrower'
+            }
         return None
     
     def _match_usd_ultra_optimized(self, block_data, amount):
@@ -1837,7 +1876,7 @@ class   ExcelTransactionMatcher:
         transactions1, transactions2, blocks1, blocks2, lc_numbers1, lc_numbers2, po_numbers1, po_numbers2, interunit_accounts1, interunit_accounts2, usd_amounts1, usd_amounts2 = self.process_files()
         
         print("\n" + "="*70)
-        print("🚀 BLOCK-BASED OPTIMIZATION - ANALYZE EACH BLOCK ONCE")
+        print("BLOCK-BASED OPTIMIZATION - ANALYZE EACH BLOCK ONCE")
         print("="*70)
         print("Instead of running each match type sequentially, we analyze each transaction block")
         print("once and determine the best match type for that block. This eliminates redundant")
@@ -1944,6 +1983,9 @@ class   ExcelTransactionMatcher:
                 audit_info = f"Aggregated PO Match: {po_count} POs\nPOs: {po_list}\nLender Amount: {amount:.2f}\nTotal Borrower Amount: {amount:.2f}"
             elif match_type == 'Manual':
                 audit_info = f"Manual Match\nLender Amount: {amount:.2f}\nBorrower Amount: {amount:.2f}"
+            elif match_type == 'Settlement':
+                audit_info = match.get('Audit_Info', 'Settlement Match')
+                audit_info += f"\nLender Amount: {amount:.2f}\nBorrower Amount: {amount:.2f}"
             else:
                 audit_info = f"{match_type} Match\nLender Amount: {amount:.2f}\nBorrower Amount: {amount:.2f}"
         else:
@@ -2041,7 +2083,7 @@ class   ExcelTransactionMatcher:
 
     def _apply_top_alignment(self, worksheet):
         """Apply top alignment and text wrapping to ALL cells in the worksheet."""
-        print(f"Setting top alignment for {worksheet.max_row} rows × {worksheet.max_column} columns...")
+        print(f"Setting top alignment for {worksheet.max_row} rows   {worksheet.max_column} columns...")
         
         for row in range(1, worksheet.max_row + 1):  # ALL rows from 1 to max
             for col in range(1, worksheet.max_column + 1):  # ALL columns

@@ -5,6 +5,11 @@ GUI dialog for manually reviewing and confirming/rejecting potential matches
 based on amount matching only.
 """
 
+import os
+import traceback
+from datetime import datetime
+from openpyxl import load_workbook
+import pandas as pd
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel,
     QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox,
@@ -12,33 +17,23 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QFont, QFontMetrics
-import pandas as pd
-from openpyxl import load_workbook
-from datetime import datetime
-import os
 
 
 class ManualMatchingWindow(QDialog):
     """Dialog window for manual matching of transaction blocks."""
     
-    def __init__(self, potential_matches, transactions1, transactions2, blocks1, blocks2, file1_path, file2_path, parent=None):
+    def __init__(self, potential_matches, file1_path, file2_path, parent=None):
         """
         Initialize manual matching window.
         
         Args:
             potential_matches: List of tuples (block1_rows, block2_rows, amount, file1_is_lender)
-            transactions1: DataFrame of transactions from File 1
-            transactions2: DataFrame of transactions from File 2
-            blocks1: List of transaction blocks from File 1
-            blocks2: List of transaction blocks from File 2
             file1_path: Path to File 1 Excel file
             file2_path: Path to File 2 Excel file
             parent: Parent widget
         """
         super().__init__(parent)
         self.potential_matches = potential_matches
-        self.transactions1 = transactions1
-        self.transactions2 = transactions2
         self.file1_path = file1_path
         self.file2_path = file2_path
         self.confirmed_matches = []
@@ -262,14 +257,6 @@ class ManualMatchingWindow(QDialog):
                         if isinstance(value, datetime):
                             formatted_date = value.strftime("%d/%b/%Y")
                             row_data.append(formatted_date)
-                        elif isinstance(value, pd.Timestamp):
-                            if pd.notna(value):
-                                # Convert pandas Timestamp to datetime for formatting
-                                dt_value = value.to_pydatetime() if hasattr(value, 'to_pydatetime') else datetime.fromtimestamp(value.timestamp())
-                                formatted_date = dt_value.strftime("%d/%b/%Y")
-                                row_data.append(formatted_date)
-                            else:
-                                row_data.append("")
                         else:
                             # Try to parse as date string if it's a string
                             str_value = str(value).strip()
@@ -483,7 +470,6 @@ class ManualMatchingWindow(QDialog):
         except Exception as e:
             # Show error message if something goes wrong
             QMessageBox.warning(self, "Error", f"Error confirming match: {str(e)}")
-            import traceback
             print(f"Error in on_confirm_match: {e}")
             print(traceback.format_exc())
     

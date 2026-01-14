@@ -46,6 +46,11 @@ def get_main_stylesheet():
             color: #00838F;
             border-color: #B2EBF2;
         }
+        QLabel[class*="settlement-pill"] {
+            background-color: #FFEBEE;
+            color: #C62828;
+            border-color: #FFCDD2;
+        }
         QLabel[class*="total-pill"] {
             background-color: #F5F5F5;
             color: #424242;

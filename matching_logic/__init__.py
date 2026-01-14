@@ -20,6 +20,7 @@ from .interunit_loan_matching_logic import InterunitLoanMatcher
 from .one_to_many_po_matching_logic import AggregatedPOMatchingLogic
 from .narration_matching_logic import NarrationMatchingLogic
 from .manual_matching_logic import ManualMatchingLogic
+from .final_settlement_matching_logic import FinalSettlementMatchingLogic
 
 # Import patterns for backward compatibility
 from .lc_matching_logic import LC_PATTERN
@@ -34,6 +35,7 @@ __all__ = [
     'AggregatedPOMatchingLogic',
     'NarrationMatchingLogic',
     'ManualMatchingLogic',
+    'FinalSettlementMatchingLogic',
     'LC_PATTERN',
     'PO_PATTERN',
     'USD_PATTERN'

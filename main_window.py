@@ -387,8 +387,7 @@ class MainWindow(QMainWindow):
                 
                 # Launch manual matching window
                 manual_window = ManualMatchingWindow(
-                    potential_matches, transactions1, transactions2,
-                    blocks1, blocks2, self.current_file1, self.current_file2, self
+                    potential_matches, self.current_file1, self.current_file2, self
                 )
                 
                 result = manual_window.exec()
