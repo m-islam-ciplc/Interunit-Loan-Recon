@@ -124,11 +124,20 @@ class InterunitLoanMatcher:
             print("No matching amount pairs found. No interunit matches possible.")
             return []
         
-        # Load workbooks for formatting analysis (only needed for filtered pairs)
-        wb1 = load_workbook(file1_path)
-        ws1 = wb1.active
-        wb2 = load_workbook(file2_path)
-        ws2 = wb2.active
+        # OPTIMIZATION: Use cached workbooks if available, otherwise load
+        if file1_path in self.block_identifier._cached_workbooks:
+            wb1, ws1 = self.block_identifier._cached_workbooks[file1_path]
+        else:
+            wb1 = load_workbook(file1_path)
+            ws1 = wb1.active
+            self.block_identifier._cached_workbooks[file1_path] = (wb1, ws1)
+        
+        if file2_path in self.block_identifier._cached_workbooks:
+            wb2, ws2 = self.block_identifier._cached_workbooks[file2_path]
+        else:
+            wb2 = load_workbook(file2_path)
+            ws2 = wb2.active
+            self.block_identifier._cached_workbooks[file2_path] = (wb2, ws2)
         
         # Create sets of blocks that are in matching pairs (for efficient lookup)
         blocks1_in_pairs = {tuple(pair[0]) for pair in matching_pairs}
@@ -282,9 +291,11 @@ class InterunitLoanMatcher:
                     unmatched_tracker.add_unmatched_reason(block1_rows[0] if block1_rows else None, reason, 1)
                     unmatched_tracker.add_unmatched_reason(block2_rows[0] if block2_rows else None, reason, 2)
         
-        # Close workbooks
-        wb1.close()
-        wb2.close()
+        # OPTIMIZATION: Don't close workbooks if they're cached (keep them open for performance)
+        if file1_path not in self.block_identifier._cached_workbooks:
+            wb1.close()
+        if file2_path not in self.block_identifier._cached_workbooks:
+            wb2.close()
         
         print(f"\nInterunit Loan Matching Complete: {len(potential_matches)} matches found")
         print(f"FOLLOWS CORE LOGIC: Uses universal M001 format, integrates with shared state")
@@ -407,10 +418,14 @@ class InterunitLoanMatcher:
         # Initialize interunit accounts series with None values
         interunit_accounts = pd.Series([None] * len(transactions), index=transactions.index)
         
-        # Load the Excel file to check cell formatting
+        # OPTIMIZATION: Use cached workbook if available, otherwise load
         try:
-            wb = load_workbook(file_path)
-            ws = wb.active
+            if file_path in self.block_identifier._cached_workbooks:
+                wb, ws = self.block_identifier._cached_workbooks[file_path]
+            else:
+                wb = load_workbook(file_path)
+                ws = wb.active
+                self.block_identifier._cached_workbooks[file_path] = (wb, ws)
             
             # Find NARRATION rows (Italic text in Column C) - NOT ledger rows
             for idx, row_idx in enumerate(transactions.index):
@@ -430,7 +445,9 @@ class InterunitLoanMatcher:
                             interunit_accounts.iloc[idx] = account_info['full_reference']
                             print(f"  Row {row_idx}: Found interunit account '{account_info['full_reference']}' in NARRATION")
             
-            wb.close()
+            # OPTIMIZATION: Don't close workbook if it's cached
+            if file_path not in self.block_identifier._cached_workbooks:
+                wb.close()
             
         except Exception as e:
             print(f"Error reading Excel file for interunit account extraction: {e}")

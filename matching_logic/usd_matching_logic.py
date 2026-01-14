@@ -71,8 +71,8 @@ class USDMatchingLogic:
                 
             print(f"\n--- Processing File 1 Row {idx1} with USD: {usd1} ---")
             
-            # Find the transaction block header row for this USD in File 1
-            block_header1 = self.block_identifier.find_transaction_block_header(idx1, transactions1)
+            # Find the transaction block header row for this USD in File 1 (with caching)
+            block_header1 = self.block_identifier.find_transaction_block_header(idx1, transactions1, file1_path)
             
             # Get header row for narration extraction (needed regardless of amount extraction method)
             header_row1 = transactions1.iloc[block_header1]
@@ -107,8 +107,8 @@ class USDMatchingLogic:
                     
                 print(f"    Checking File 2 Row {idx2} with USD: {usd2}")
                 
-                # Find the transaction block header row for this USD in File 2
-                block_header2 = self.block_identifier.find_transaction_block_header(idx2, transactions2)
+                # Find the transaction block header row for this USD in File 2 (with caching)
+                block_header2 = self.block_identifier.find_transaction_block_header(idx2, transactions2, file2_path)
                 
                 # Get header row for narration extraction (needed regardless of amount extraction method)
                 header_row2 = transactions2.iloc[block_header2]

@@ -7,6 +7,7 @@ based on specific formatting and content criteria.
 
 import openpyxl
 import pandas as pd
+import os
 
 
 class TransactionBlockIdentifier:
@@ -21,11 +22,166 @@ class TransactionBlockIdentifier:
     
     def __init__(self):
         """Initialize the TransactionBlockIdentifier."""
-        pass
+        # Cache for block mappings: {file_path: {row_index: block_rows}}
+        self._block_cache = {}
+        # Cache for workbooks: {file_path: (wb, ws)} - keep workbooks open for performance
+        self._cached_workbooks = {}
+        # Cache for amount lookups: {file_path: {header_row_idx: amounts_dict}}
+        self._amount_cache = {}
+        # Cache for block headers: {file_path: {description_row_idx: block_header_idx}}
+        self._block_header_cache = {}
+        # Cache for narration index: {file_path: {narration: [(block_header_idx, description_idx, amounts_dict)]}}
+        self._narration_index_cache = {}
+    
+    def precompute_all_blocks(self, transactions_df, file_path):
+        """
+        Pre-compute all block mappings for a file and cache them.
+        This eliminates the need to reload Excel files repeatedly.
+        
+        Args:
+            transactions_df: DataFrame containing transaction data
+            file_path: Path to the Excel file
+        """
+        if file_path in self._block_cache:
+            # Already cached
+            return
+        
+        print(f"Pre-computing block mappings for {os.path.basename(file_path)}...")
+        
+        # Load workbook once and cache it
+        wb = openpyxl.load_workbook(file_path)
+        ws = wb.active
+        self._cached_workbooks[file_path] = (wb, ws)
+        
+        # Identify all blocks using the cached workbook (don't reload)
+        all_blocks = self._identify_transaction_blocks_with_worksheet(transactions_df, ws)
+        
+        # Create reverse mapping: for each row, which block does it belong to?
+        row_to_block = {}
+        for block_rows in all_blocks:
+            for row_idx in block_rows:
+                row_to_block[row_idx] = block_rows
+        
+        # Cache all mappings
+        self._block_cache[file_path] = row_to_block
+        
+        print(f"  Cached {len(row_to_block)} row-to-block mappings for {len(all_blocks)} blocks")
+    
+    def _identify_transaction_blocks_with_worksheet(self, transactions_df, ws):
+        """
+        Internal helper method to identify blocks using an already-loaded worksheet.
+        This avoids reloading the workbook when we already have it cached.
+        
+        Args:
+            transactions_df: DataFrame containing transaction data
+            ws: Already-loaded worksheet object
+        
+        Returns:
+            List of transaction block row indices
+        """
+        transaction_blocks = []
+        current_block = []
+        in_block = False
+        
+        for row_idx in range(10, ws.max_row + 1):  # Start from row 10 (after headers)
+            # Convert Excel row to DataFrame row index
+            df_row_idx = row_idx - 10
+            
+            if df_row_idx < 0:
+                continue
+            
+            # Check if this row starts a new transaction block
+            date_cell = ws.cell(row=row_idx, column=1)  # Column A (Date)
+            particulars_cell = ws.cell(row=row_idx, column=2)  # Column B (Particulars)
+            vch_type_cell = ws.cell(row=row_idx, column=6)  # Column F (Vch Type)
+            vch_no_cell = ws.cell(row=row_idx, column=7)  # Column G (Vch No.)
+            debit_cell = ws.cell(row=row_idx, column=8)  # Column H (Debit)
+            credit_cell = ws.cell(row=row_idx, column=9)  # Column I (Credit)
+            
+            # Check if this row has a real date and Dr/Cr
+            has_real_date = (date_cell.value and 
+                           str(date_cell.value).strip() and 
+                           str(date_cell.value).strip() != 'None' and
+                           str(date_cell.value).strip() != '')
+            has_dr_cr = particulars_cell.value and str(particulars_cell.value).strip() in ['Dr', 'Cr']
+            
+            # Check if this row has Vch Type (Bold) and Vch No. (Regular) - required for transaction blocks
+            has_vch_type = vch_type_cell.value and vch_type_cell.font and vch_type_cell.font.bold
+            has_vch_no = vch_no_cell.value and vch_no_cell.font and not vch_no_cell.font.bold and not vch_no_cell.font.italic
+            
+            # Check if this row has Debit or Credit amount (Bold) - required for transaction blocks
+            has_debit = debit_cell.value and debit_cell.font and debit_cell.font.bold
+            has_credit = credit_cell.value and credit_cell.font and credit_cell.font.bold
+            
+            # Check if this is NOT an Opening Balance row (which is not a transaction block)
+            is_not_opening_balance = not (particulars_cell.value and 'Opening Balance' in str(particulars_cell.value))
+            
+            # Check if this row ends a transaction block ("Entered By :")
+            is_block_end = particulars_cell.value and str(particulars_cell.value).strip() == 'Entered By :'
+            
+            # Transaction block start requires: Date + Dr/Cr + Vch Type + Vch No. + Debit/Credit + NOT Opening Balance
+            is_block_start = (has_real_date and has_dr_cr and has_vch_type and has_vch_no and 
+                             (has_debit or has_credit) and is_not_opening_balance)
+            
+            if is_block_start:
+                # If we're already in a block, end the current one
+                if in_block and current_block:
+                    transaction_blocks.append(current_block)
+                
+                # Start new block
+                current_block = [df_row_idx]
+                in_block = True
+            elif in_block:
+                # Continue adding rows to current block
+                current_block.append(df_row_idx)
+                
+                # Check if this row ends the block
+                if is_block_end:
+                    # End the current block
+                    transaction_blocks.append(current_block)
+                    current_block = []
+                    in_block = False
+        
+        # Add the last block if it exists
+        if in_block and current_block:
+            transaction_blocks.append(current_block)
+        
+        return transaction_blocks
+    
+    def clear_cache(self, file_path=None):
+        """
+        Clear cache for a specific file or all files.
+        
+        Args:
+            file_path: If provided, clear cache for this file only. If None, clear all caches.
+        """
+        if file_path:
+            if file_path in self._block_cache:
+                del self._block_cache[file_path]
+            if file_path in self._amount_cache:
+                del self._amount_cache[file_path]
+            if file_path in self._block_header_cache:
+                del self._block_header_cache[file_path]
+            if file_path in self._narration_index_cache:
+                del self._narration_index_cache[file_path]
+            if file_path in self._cached_workbooks:
+                wb, ws = self._cached_workbooks[file_path]
+                wb.close()
+                del self._cached_workbooks[file_path]
+        else:
+            # Close all workbooks
+            for wb, ws in self._cached_workbooks.values():
+                wb.close()
+            self._block_cache.clear()
+            self._amount_cache.clear()
+            self._block_header_cache.clear()
+            self._narration_index_cache.clear()
+            self._cached_workbooks.clear()
     
     def get_transaction_block_rows(self, lc_match_row, file_path):
         """
         Get all row indices that belong to the transaction block containing the LC match.
+        NOW WITH CACHING - uses pre-computed mappings if available.
         
         Args:
             lc_match_row: The row index where the LC match was found
@@ -34,11 +190,27 @@ class TransactionBlockIdentifier:
         Returns:
             List of row indices that belong to the transaction block (from start to "Entered By :")
         """
+        # Check cache first
+        if file_path in self._block_cache:
+            if lc_match_row in self._block_cache[file_path]:
+                # Cache hit - return immediately
+                return self._block_cache[file_path][lc_match_row]
+            else:
+                # Row not in cache - might be outside transaction blocks (e.g., opening balance)
+                # Return empty list to maintain compatibility
+                return []
+        
+        # Cache miss - fall back to original logic (for backward compatibility)
+        # This should rarely happen if precompute_all_blocks() is called first
         block_rows = []
         
-        # Load workbook with openpyxl to access formatting
-        wb = openpyxl.load_workbook(file_path)
-        ws = wb.active
+        # Use cached workbook if available, otherwise load it
+        if file_path in self._cached_workbooks:
+            wb, ws = self._cached_workbooks[file_path]
+        else:
+            wb = openpyxl.load_workbook(file_path)
+            ws = wb.active
+            self._cached_workbooks[file_path] = (wb, ws)
         
         # Convert DataFrame row index to Excel row number 
         # DataFrame starts at 0, but Excel has metadata rows 1-8, then headers at row 9, then data starts at row 10
@@ -127,7 +299,9 @@ class TransactionBlockIdentifier:
             
             current_row += 1
         
-        wb.close()
+        # Don't close workbook if it's cached - keep it open for performance
+        if file_path not in self._cached_workbooks:
+            wb.close()
         
         return block_rows
     
@@ -217,18 +391,25 @@ class TransactionBlockIdentifier:
         
         return transaction_blocks
     
-    def find_transaction_block_header(self, description_row_idx, transactions_df):
+    def find_transaction_block_header(self, description_row_idx, transactions_df, file_path=None):
         """
         Find the transaction block header row for a given description row.
         This is the UNIVERSAL method used by all matching modules.
+        OPTIMIZED: Uses caching to avoid redundant scans.
         
         Args:
             description_row_idx: The row index of a description/narration row
             transactions_df: DataFrame containing transaction data
+            file_path: Optional file path for caching (recommended for performance)
         
         Returns:
             Row index of the transaction block header (with date, particulars, and amounts)
         """
+        # OPTIMIZATION: Check cache first if file_path provided
+        if file_path and file_path in self._block_header_cache:
+            if description_row_idx in self._block_header_cache[file_path]:
+                return self._block_header_cache[file_path][description_row_idx]
+        
         # Start from the description row and go backwards to find the block header
         # Block header is the row with date and particulars (Dr/Cr) and amounts
         for row_idx in range(description_row_idx, -1, -1):
@@ -241,10 +422,76 @@ class TransactionBlockIdentifier:
             
             # Transaction block header: has date, particulars, and either debit or credit
             if has_date and (has_debit or has_credit):
-                return row_idx
+                block_header_idx = row_idx
+                # OPTIMIZATION: Cache the result
+                if file_path:
+                    if file_path not in self._block_header_cache:
+                        self._block_header_cache[file_path] = {}
+                    self._block_header_cache[file_path][description_row_idx] = block_header_idx
+                return block_header_idx
         
         # If no header found, return the description row itself
-        return description_row_idx
+        block_header_idx = description_row_idx
+        # OPTIMIZATION: Cache the result
+        if file_path:
+            if file_path not in self._block_header_cache:
+                self._block_header_cache[file_path] = {}
+            self._block_header_cache[file_path][description_row_idx] = block_header_idx
+        return block_header_idx
+    
+    def build_narration_index(self, transactions_df, file_path):
+        """
+        Build an index of narrations for fast lookups.
+        Index structure: {narration_text: [(block_header_idx, description_idx, amounts_dict), ...]}
+        
+        Args:
+            transactions_df: DataFrame containing transaction data
+            file_path: Path to Excel file for amount extraction
+        
+        Returns:
+            Dictionary mapping narration text to list of transaction info tuples
+        """
+        # Check cache first
+        if file_path in self._narration_index_cache:
+            return self._narration_index_cache[file_path]
+        
+        narration_index = {}
+        
+        print(f"  - Building narration index for {len(transactions_df)} transactions...")
+        
+        for idx in range(len(transactions_df)):
+            # Find block header
+            block_header_idx = self.find_transaction_block_header(idx, transactions_df, file_path)
+            
+            # Find description row
+            description_idx = self.find_description_row_in_block(idx, transactions_df)
+            if description_idx is None:
+                continue
+            
+            # Extract narration
+            narration = str(transactions_df.iloc[description_idx, 2]).strip()
+            
+            # Skip empty or very short narrations
+            if len(narration) < 10 or narration.lower() in ['nan', 'none', '']:
+                continue
+            
+            # Get amounts
+            amounts = self.get_header_row_amounts(block_header_idx, file_path)
+            if not amounts or amounts.get('amount', 0) <= 0:
+                continue
+            
+            # Add to index
+            if narration not in narration_index:
+                narration_index[narration] = []
+            
+            narration_index[narration].append((block_header_idx, description_idx, amounts))
+        
+        # Cache the index
+        self._narration_index_cache[file_path] = narration_index
+        
+        print(f"  - Built index with {len(narration_index)} unique narrations")
+        
+        return narration_index
     
     def find_description_row_in_block(self, row_idx, transactions_df):
         """
@@ -325,6 +572,7 @@ class TransactionBlockIdentifier:
         """
         Get debit and credit amounts from the header row of a transaction block.
         This is a UNIVERSAL method used by all matching modules.
+        OPTIMIZED: Uses caching to avoid reloading Excel files.
         
         The header row is guaranteed to be the first element in block_rows
         (as identified by identify_transaction_blocks).
@@ -346,11 +594,22 @@ class TransactionBlockIdentifier:
         
         # The first row in block_rows is the header row (guaranteed by identify_transaction_blocks)
         header_row_idx = block_rows[0]
+        
+        # OPTIMIZATION: Check cache first
+        if file_path in self._amount_cache:
+            if header_row_idx in self._amount_cache[file_path]:
+                return self._amount_cache[file_path][header_row_idx]
+        
         excel_header_row = header_row_idx + 10  # Convert DataFrame row to Excel row
         
         try:
-            wb = openpyxl.load_workbook(file_path)
-            ws = wb.active
+            # OPTIMIZATION: Use cached workbook if available, otherwise load
+            if file_path in self._cached_workbooks:
+                wb, ws = self._cached_workbooks[file_path]
+            else:
+                wb = openpyxl.load_workbook(file_path)
+                ws = wb.active
+                self._cached_workbooks[file_path] = (wb, ws)
             
             if excel_header_row <= ws.max_row:
                 debit_cell = ws.cell(row=excel_header_row, column=8)  # Column H
@@ -390,10 +649,21 @@ class TransactionBlockIdentifier:
                         'is_borrower': is_borrower,
                         'amount': amount
                     }
-                    wb.close()
+                    
+                    # OPTIMIZATION: Cache the result
+                    if file_path not in self._amount_cache:
+                        self._amount_cache[file_path] = {}
+                    self._amount_cache[file_path][header_row_idx] = amounts
+                    
+                    # Don't close workbook if it's cached
+                    if file_path not in self._cached_workbooks:
+                        wb.close()
+                    
                     return amounts
             
-            wb.close()
+            # Don't close workbook if it's cached
+            if file_path not in self._cached_workbooks:
+                wb.close()
         except Exception as e:
             print(f"Error reading amounts from header row: {e}")
         

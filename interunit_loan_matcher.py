@@ -454,72 +454,105 @@ class   ExcelTransactionMatcher:
         return all_matches
     
     def _prefilter_by_amount_matching(self, transactions1, transactions2, blocks1, blocks2):
-        """Pre-filter records where lender debit amount = borrower credit amount."""
-        print("  - Creating amount-to-record mapping...")
+        """
+        Pre-filter blocks/transactions where lender debit amount = borrower credit amount.
+        Uses Excel-based amount extraction (same as matching modules) for consistency.
+        Returns filtered blocks and transaction indices.
+        """
+        print("  - Creating amount-to-block mapping using Excel-based extraction...")
         
-        # Create amount-to-record mapping for both files
-        amount_to_records1 = {}  # {amount: [(row_idx, role, block_idx)]}
-        amount_to_records2 = {}
+        # Create amount-to-block mapping for both files using Excel-based extraction
+        amount_to_blocks1 = {}  # {amount: [(block_header_idx, block_rows, role)]}
+        amount_to_blocks2 = {}
         
-        # Map File 1 records by amount
-        for block_idx, block in enumerate(blocks1):
-            for row_idx in block:
-                if row_idx < len(transactions1):
-                    amounts = self.get_cached_amounts_universal(row_idx, transactions1)
-                    if amounts[0] > 0:  # Debit amount (lender)
-                        if amounts[0] not in amount_to_records1:
-                            amount_to_records1[amounts[0]] = []
-                        amount_to_records1[amounts[0]].append((row_idx, 'lender', block_idx))
-                    if amounts[1] > 0:  # Credit amount (borrower)
-                        if amounts[1] not in amount_to_records1:
-                            amount_to_records1[amounts[1]] = []
-                        amount_to_records1[amounts[1]].append((row_idx, 'borrower', block_idx))
+        # Map File 1 blocks by amount (using Excel-based extraction for consistency)
+        for block_idx, block_rows in enumerate(blocks1):
+            if not block_rows:
+                continue
+            amounts = self.block_identifier.get_block_header_amounts(block_rows, self.file1_path)
+            if amounts and amounts.get('amount', 0) > 0:
+                amount = amounts.get('amount', 0)
+                block_header_idx = block_rows[0]  # Header row is first
+                is_lender = amounts.get('is_lender', False)
+                is_borrower = amounts.get('is_borrower', False)
+                
+                if amount not in amount_to_blocks1:
+                    amount_to_blocks1[amount] = []
+                if is_lender:
+                    amount_to_blocks1[amount].append((block_header_idx, block_rows, 'lender'))
+                if is_borrower:
+                    amount_to_blocks1[amount].append((block_header_idx, block_rows, 'borrower'))
         
-        # Map File 2 records by amount
-        for block_idx, block in enumerate(blocks2):
-            for row_idx in block:
-                if row_idx < len(transactions2):
-                    amounts = self.get_cached_amounts_universal(row_idx, transactions2)
-                    if amounts[0] > 0:  # Debit amount (lender)
-                        if amounts[0] not in amount_to_records2:
-                            amount_to_records2[amounts[0]] = []
-                        amount_to_records2[amounts[0]].append((row_idx, 'lender', block_idx))
-                    if amounts[1] > 0:  # Credit amount (borrower)
-                        if amounts[1] not in amount_to_records2:
-                            amount_to_records2[amounts[1]] = []
-                        amount_to_records2[amounts[1]].append((row_idx, 'borrower', block_idx))
+        # Map File 2 blocks by amount (using Excel-based extraction for consistency)
+        for block_idx, block_rows in enumerate(blocks2):
+            if not block_rows:
+                continue
+            amounts = self.block_identifier.get_block_header_amounts(block_rows, self.file2_path)
+            if amounts and amounts.get('amount', 0) > 0:
+                amount = amounts.get('amount', 0)
+                block_header_idx = block_rows[0]  # Header row is first
+                is_lender = amounts.get('is_lender', False)
+                is_borrower = amounts.get('is_borrower', False)
+                
+                if amount not in amount_to_blocks2:
+                    amount_to_blocks2[amount] = []
+                if is_lender:
+                    amount_to_blocks2[amount].append((block_header_idx, block_rows, 'lender'))
+                if is_borrower:
+                    amount_to_blocks2[amount].append((block_header_idx, block_rows, 'borrower'))
         
-        print(f"  - File 1: {len(amount_to_records1)} unique amounts")
-        print(f"  - File 2: {len(amount_to_records2)} unique amounts")
+        print(f"  - File 1: {len(amount_to_blocks1)} unique amounts")
+        print(f"  - File 2: {len(amount_to_blocks2)} unique amounts")
         
         # Find common amounts
-        common_amounts = set(amount_to_records1.keys()) & set(amount_to_records2.keys())
+        common_amounts = set(amount_to_blocks1.keys()) & set(amount_to_blocks2.keys())
         print(f"  - Common amounts: {len(common_amounts)}")
         
-        # Collect records that have matching amounts
-        filtered_indices1 = set()
-        filtered_indices2 = set()
+        # Collect blocks and transaction indices that have matching amounts (bidirectional)
+        filtered_block_header_indices1 = set()
+        filtered_block_header_indices2 = set()
+        filtered_transaction_indices1 = set()
+        filtered_transaction_indices2 = set()
         
         for amount in common_amounts:
-            file1_records = amount_to_records1[amount]
-            file2_records = amount_to_records2[amount]
+            file1_blocks = amount_to_blocks1[amount]
+            file2_blocks = amount_to_blocks2[amount]
             
-            # Check for lender-borrower pairs
-            for row1_idx, role1, block1_idx in file1_records:
-                for row2_idx, role2, block2_idx in file2_records:
+            # Check for lender-borrower pairs (bidirectional)
+            for header1_idx, block1_rows, role1 in file1_blocks:
+                for header2_idx, block2_rows, role2 in file2_blocks:
                     # Only process lender-borrower pairs (not lender-lender or borrower-borrower)
                     if role1 != role2:
-                        filtered_indices1.add(row1_idx)
-                        filtered_indices2.add(row2_idx)
+                        # Track block headers
+                        filtered_block_header_indices1.add(header1_idx)
+                        filtered_block_header_indices2.add(header2_idx)
+                        # Track all transaction indices in these blocks
+                        filtered_transaction_indices1.update(block1_rows)
+                        filtered_transaction_indices2.update(block2_rows)
         
-        print(f"  - Filtered indices File 1: {len(filtered_indices1)}")
-        print(f"  - Filtered indices File 2: {len(filtered_indices2)}")
+        print(f"  - Filtered block headers File 1: {len(filtered_block_header_indices1)}")
+        print(f"  - Filtered block headers File 2: {len(filtered_block_header_indices2)}")
+        print(f"  - Filtered transaction indices File 1: {len(filtered_transaction_indices1)}")
+        print(f"  - Filtered transaction indices File 2: {len(filtered_transaction_indices2)}")
         
-        # Create filtered DataFrames
-        filtered_records1 = transactions1.iloc[list(filtered_indices1)].copy() if filtered_indices1 else transactions1.iloc[0:0].copy()
-        filtered_records2 = transactions2.iloc[list(filtered_indices2)].copy() if filtered_indices2 else transactions2.iloc[0:0].copy()
+        # Filter blocks to only include those with matching amounts
+        filtered_blocks1 = []
+        filtered_blocks2 = []
+        for block_rows in blocks1:
+            if block_rows and block_rows[0] in filtered_block_header_indices1:
+                filtered_blocks1.append(block_rows)
         
-        return filtered_records1, filtered_records2
+        for block_rows in blocks2:
+            if block_rows and block_rows[0] in filtered_block_header_indices2:
+                filtered_blocks2.append(block_rows)
+        
+        # Store mapping for later use
+        self._prefiltered_transaction_indices1 = filtered_transaction_indices1
+        self._prefiltered_transaction_indices2 = filtered_transaction_indices2
+        self._prefiltered_blocks1 = filtered_blocks1
+        self._prefiltered_blocks2 = filtered_blocks2
+        
+        return filtered_transaction_indices1, filtered_transaction_indices2, filtered_blocks1, filtered_blocks2
     
     def _extract_data_from_filtered_records(self, filtered_records1, filtered_records2, 
                                           lc_numbers1, lc_numbers2, po_numbers1, po_numbers2,
@@ -2294,8 +2327,15 @@ class   ExcelTransactionMatcher:
         print(f"\n=== USING SEQUENTIALLY ASSIGNED MATCHES ===")
         print(f"Total matches: {len(matches)}")
         print(f"First 10 Match IDs: {[m['match_id'] for m in matches[:10]]}")
-
         print(f"Last 10 Match IDs: {[m['match_id'] for m in matches[-10:]]}")
+        
+        # OPTIMIZATION: Pre-compute all block mappings before processing matches
+        # This eliminates thousands of Excel file reloads
+        print(f"\n=== PRE-COMPUTING BLOCK MAPPINGS FOR PERFORMANCE ===")
+        print("This eliminates thousands of Excel file reloads...")
+        self.block_identifier.precompute_all_blocks(transactions1, self.file1_path)
+        self.block_identifier.precompute_all_blocks(transactions2, self.file2_path)
+        print("Block mappings cached successfully!")
         
         # Create file1 with new columns
         file1_matched = transactions1.copy()
@@ -2472,6 +2512,12 @@ class   ExcelTransactionMatcher:
             print(f"  Warning: unmatched_tracker not available, skipping unmatched audit info")
         except Exception as e:
             print(f"  Warning: Error adding unmatched audit info: {e}")
+        
+        # Clean up cached workbooks after processing
+        print(f"\n=== CLEANING UP CACHE ===")
+        self.block_identifier.clear_cache(self.file1_path)
+        self.block_identifier.clear_cache(self.file2_path)
+        print("Cache cleared successfully!")
         
         # Save matched files using configuration variables
         base_name1 = os.path.splitext(os.path.basename(self.file1_path))[0]

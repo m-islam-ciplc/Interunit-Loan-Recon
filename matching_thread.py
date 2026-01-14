@@ -1,15 +1,14 @@
 """
 Matching Thread for Interunit Loan Matcher
-Background processing logic for GUI application with sleep prevention and auto-resume
+Background processing logic for GUI application with sleep prevention
 """
 
 import sys
 import io
 import time
-from contextlib import redirect_stdout
 from PySide6.QtCore import QThread, Signal
 from interunit_loan_matcher import ExcelTransactionMatcher
-from system_utils import SystemSleepPrevention, ProgressCheckpointer, ProcessMonitor, AutoResumeManager
+from system_utils import SystemSleepPrevention, ProcessMonitor
 
 
 class MatchingThread(QThread):
@@ -22,7 +21,7 @@ class MatchingThread(QThread):
     error_occurred = Signal(str)  # error_message
     log_message = Signal(str)  # detailed log message
     
-    def __init__(self, file1_path: str, file2_path: str, resume_data: dict = None):
+    def __init__(self, file1_path: str, file2_path: str):
         super().__init__()
         self.file1_path = file1_path
         self.file2_path = file2_path
@@ -32,11 +31,7 @@ class MatchingThread(QThread):
         
         # Initialize system utilities
         self.sleep_prevention = SystemSleepPrevention()
-        self.checkpointer = ProgressCheckpointer()
         self.process_monitor = ProcessMonitor()
-        self.auto_resume = AutoResumeManager(self.checkpointer)
-        self.resume_data = resume_data
-        self.last_checkpoint_time = 0
         
         # Store data for manual matching
         self.all_automatic_matches = None
@@ -65,37 +60,6 @@ class MatchingThread(QThread):
             self._captured_output = None
             self._original_stdout = None
     
-    def _log_with_delay(self, message: str, delay: float = 0.1):
-        """Emit log message with small delay to ensure real-time display"""
-        self.log_message.emit(message)
-        time.sleep(delay)  # Small delay to ensure GUI updates
-    
-    def _create_checkpoint(self, step: str, progress: int, matches_found: int, matches: list = None, statistics: dict = None):
-        """Create a progress checkpoint"""
-        current_time = time.time()
-        
-        # Only checkpoint every 30 seconds to avoid overhead
-        if current_time - self.last_checkpoint_time < 30:
-            return
-            
-        try:
-            checkpoint_id = self.checkpointer.create_checkpoint(
-                step=step,
-                progress=progress,
-                matches_found=matches_found,
-                file1_path=self.file1_path,
-                file2_path=self.file2_path,
-                matches=matches,
-                statistics=statistics
-            )
-            
-            if checkpoint_id:
-                self.last_checkpoint_time = current_time
-                self.log_message.emit(f"[SAVE] Checkpoint saved: {step} ({progress}%)")
-                
-        except Exception as e:
-            self.log_message.emit(f"[WARNING] Warning: Could not save checkpoint: {e}")
-    
     def _start_system_protection(self):
         """Start system sleep prevention and monitoring"""
         try:
@@ -120,7 +84,7 @@ class MatchingThread(QThread):
         self.process_monitor.update_activity()
         
     def run(self):
-        """Run the matching process in background thread with sleep prevention and auto-resume"""
+        """Run the matching process in background thread with sleep prevention"""
         try:
             # Start system protection
             self._start_system_protection()
@@ -142,13 +106,6 @@ class MatchingThread(QThread):
             except ImportError:
                 pass  # unmatched_tracker not available, continue anyway
             
-            # Check for resume data
-            if self.resume_data:
-                self.log_message.emit("[RESUME] Resuming from checkpoint...")
-                self.log_message.emit(f"   Previous step: {self.resume_data['step']}")
-                self.log_message.emit(f"   Previous progress: {self.resume_data['progress']}%")
-                self.log_message.emit(f"   Matches found so far: {self.resume_data['matches_found']}")
-            
             matcher = ExcelTransactionMatcher(self.file1_path, self.file2_path)
             self._update_activity()
             
@@ -163,9 +120,6 @@ class MatchingThread(QThread):
             self.log_message.emit("[STATS] Processing Excel files...")
             self._update_activity()
             
-            # Create checkpoint before file processing
-            self._create_checkpoint("File Processing", 8, 0)
-            
             # Capture print output during file processing
             self._capture_print_output()
             self.log_message.emit("   - Loading Excel files and extracting data...")
@@ -176,7 +130,77 @@ class MatchingThread(QThread):
             
             if self.is_cancelled:
                 return
-                
+            
+            # PHASE 2.5: GLOBAL PRE-FILTERING BY AMOUNT (OPTIMIZATION)
+            self.progress_updated.emit(20, "Pre-filtering by amount...", 0)
+            self.log_message.emit("[OPTIMIZATION] Global Pre-filtering by Amount")
+            self.log_message.emit("   - Filtering transactions with matching amounts...")
+            self.log_message.emit("   - This reduces dataset size for all matching modules...")
+            self._update_activity()
+            
+            # Capture print output during pre-filtering
+            self._capture_print_output()
+            filtered_indices1, filtered_indices2, filtered_blocks1, filtered_blocks2 = matcher._prefilter_by_amount_matching(
+                transactions1, transactions2, blocks1, blocks2
+            )
+            self._release_print_output()
+            
+            # Calculate reduction
+            reduction1 = len(transactions1) - len(filtered_indices1)
+            reduction2 = len(transactions2) - len(filtered_indices2)
+            reduction_pct1 = (reduction1 / len(transactions1) * 100) if len(transactions1) > 0 else 0
+            reduction_pct2 = (reduction2 / len(transactions2) * 100) if len(transactions2) > 0 else 0
+            
+            self.log_message.emit(f"   [OK] Pre-filtering complete:")
+            self.log_message.emit(f"   - File 1: {len(filtered_indices1)}/{len(transactions1)} transactions ({reduction_pct1:.1f}% reduction)")
+            self.log_message.emit(f"   - File 2: {len(filtered_indices2)}/{len(transactions2)} transactions ({reduction_pct2:.1f}% reduction)")
+            self.log_message.emit(f"   - Blocks: {len(filtered_blocks1)}/{len(blocks1)} File 1, {len(filtered_blocks2)}/{len(blocks2)} File 2")
+            self._update_activity()
+            
+            if self.is_cancelled:
+                return
+            
+            # Filter data series to match filtered transactions (maintain original indices)
+            # Use boolean indexing to filter while preserving original index positions
+            filtered_lc_numbers1 = lc_numbers1.copy()
+            filtered_lc_numbers2 = lc_numbers2.copy()
+            filtered_po_numbers1 = po_numbers1.copy()
+            filtered_po_numbers2 = po_numbers2.copy()
+            filtered_interunit_accounts1 = interunit_accounts1.copy()
+            filtered_interunit_accounts2 = interunit_accounts2.copy()
+            filtered_usd_amounts1 = usd_amounts1.copy()
+            filtered_usd_amounts2 = usd_amounts2.copy()
+            
+            # Set non-filtered indices to None (they won't be processed)
+            for idx in range(len(lc_numbers1)):
+                if idx not in filtered_indices1:
+                    filtered_lc_numbers1.iloc[idx] = None
+                    filtered_po_numbers1.iloc[idx] = None
+                    filtered_interunit_accounts1.iloc[idx] = None
+                    filtered_usd_amounts1.iloc[idx] = None
+            
+            for idx in range(len(lc_numbers2)):
+                if idx not in filtered_indices2:
+                    filtered_lc_numbers2.iloc[idx] = None
+                    filtered_po_numbers2.iloc[idx] = None
+                    filtered_interunit_accounts2.iloc[idx] = None
+                    filtered_usd_amounts2.iloc[idx] = None
+            
+            # Update variables to use filtered data
+            blocks1 = filtered_blocks1
+            blocks2 = filtered_blocks2
+            lc_numbers1 = filtered_lc_numbers1
+            lc_numbers2 = filtered_lc_numbers2
+            po_numbers1 = filtered_po_numbers1
+            po_numbers2 = filtered_po_numbers2
+            interunit_accounts1 = filtered_interunit_accounts1
+            interunit_accounts2 = filtered_interunit_accounts2
+            usd_amounts1 = filtered_usd_amounts1
+            usd_amounts2 = filtered_usd_amounts2
+            
+            # Note: transactions1 and transactions2 remain unchanged (matching modules use original indices)
+            # The filtered data series will naturally skip non-matching transactions
+            
             # PHASE 3: MATCHING LOGIC (25-60%) - 5 steps, 7% each
             # Step 1: Narration Matching (25-32%)
             self.progress_updated.emit(25, "Finding narration matches...", 0)
@@ -192,8 +216,6 @@ class MatchingThread(QThread):
             self.log_message.emit(f"   - Narration matching completed in {len(narration_matches)} matches")
             self.step_completed.emit("Narration Matching", len(narration_matches))
             
-            # Create checkpoint after narration matching
-            self._create_checkpoint("Narration Matching", 32, len(narration_matches), narration_matches)
             self._update_activity()
             
             if self.is_cancelled:
@@ -412,19 +434,13 @@ class MatchingThread(QThread):
                 'po_matches': len(po_matches),
                 'interunit_matches': len(interunit_matches),
                 'settlement_matches': len(settlement_matches),
-                'usd_matches': len(usd_matches)
+                'usd_matches': len(usd_matches),
+                'manual_matches': 0  # Manual matches added later
             }
-            
-            # Create final checkpoint
-            self._create_checkpoint("Matching Complete", 100, stats['total_matches'], all_matches, stats)
             
             self.log_message.emit("[DONE] Matching completed successfully!")
             self.log_message.emit(f"[RESULTS] Final Results: {stats['total_matches']} total matches found")
             self.progress_updated.emit(75, "Matching completed successfully!", stats['total_matches'])
-            
-            # Clean up checkpoints after successful completion
-            self.checkpointer.cleanup_old_checkpoints(keep_last=1)
-            self.auto_resume.clear_resume_data()
             
             # Store matches and data for potential manual matching
             self.all_automatic_matches = all_matches

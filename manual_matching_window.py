@@ -26,6 +26,7 @@ class ManualMatchingWidget(QWidget):
     finished = Signal(list)  # Emitted with confirmed_matches when all reviewed
     skipped = Signal()       # Emitted when "Skip" is clicked
     cancelled = Signal()     # Emitted if user wants to cancel (if we add a cancel button)
+    match_confirmed = Signal(int)  # Emitted when a match is confirmed, with current count
 
     def __init__(self, parent=None):
         """Initialize manual matching widget."""
@@ -95,12 +96,27 @@ class ManualMatchingWidget(QWidget):
         main_layout.setSpacing(10)  # Match container margins for consistent spacing
         main_layout.setContentsMargins(15, 10, 15, 10)  # Consistent with other sections
 
-        # Progress indicator
+        # Title row with Skip button - horizontal layout
+        title_row_layout = QHBoxLayout()
+        title_row_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Progress indicator (title) - left aligned
         progress_label = QLabel()
         progress_label.setProperty("class", "title")  # Use consistent title styling
         progress_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Left align like other titles
         self.progress_label = progress_label
-        main_layout.addWidget(progress_label)
+        title_row_layout.addWidget(progress_label)
+        
+        # Add stretch to push skip button to the right
+        title_row_layout.addStretch()
+        
+        # Skip button - right aligned in title row
+        skip_button = QPushButton("Skip Manual Matching")
+        skip_button.setMinimumWidth(150)
+        skip_button.clicked.connect(self.on_skip_manual_matching)
+        title_row_layout.addWidget(skip_button)
+        
+        main_layout.addLayout(title_row_layout)
 
         # Match info (amount and types) - reduced spacing
         info_label = QLabel()
@@ -189,12 +205,6 @@ class ManualMatchingWidget(QWidget):
         reject_button.setMinimumWidth(120)
         reject_button.clicked.connect(self.on_reject_match)
         button_layout.addWidget(reject_button)
-
-        # Skip button
-        skip_button = QPushButton("Skip Manual Matching")
-        skip_button.setMinimumWidth(150)
-        skip_button.clicked.connect(self.on_skip_manual_matching)
-        button_layout.addWidget(skip_button)
 
         button_layout.addStretch()
         main_layout.addLayout(button_layout)
@@ -382,6 +392,8 @@ class ManualMatchingWidget(QWidget):
             }
             
             self.confirmed_matches.append(match)
+            # Emit signal with current count for real-time update
+            self.match_confirmed.emit(len(self.confirmed_matches))
             self.move_to_next()
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Error confirming match: {str(e)}")
@@ -390,10 +402,22 @@ class ManualMatchingWidget(QWidget):
         self.move_to_next()
     
     def on_skip_manual_matching(self):
-        # Notify MainWindow that user skipped
-        if self.wb1: self.wb1.close()
-        if self.wb2: self.wb2.close()
-        self.skipped.emit()
+        """Handle user clicking Skip Manual Matching button with confirmation."""
+        # Show confirmation dialog
+        reply = QMessageBox.question(
+            self,
+            "Skip Manual Matching",
+            "Are you sure you want to skip manual matching?\n\n"
+            "Any unconfirmed matches will be skipped and the matching process will continue with automatic matches only.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        
+        if reply == QMessageBox.StandardButton.Yes:
+            # Notify MainWindow that user skipped
+            if self.wb1: self.wb1.close()
+            if self.wb2: self.wb2.close()
+            self.skipped.emit()
     
     def move_to_next(self):
         self.current_index += 1

@@ -17,7 +17,6 @@ from gui_widgets import FileSelectionWidget, ProcessingWidget, ResultsWidget, Lo
 from matching_thread import MatchingThread
 # No custom styling - using macOS native style
 from interunit_loan_matcher import ExcelTransactionMatcher
-from system_utils import AutoResumeManager, ProgressCheckpointer
 from bank_account_mapping_widget import BankAccountMappingWidget
 from manual_matching_window import ManualMatchingWidget
 from matching_logic import ManualMatchingLogic
@@ -36,14 +35,9 @@ class MainWindow(QMainWindow):
         self.start_time = None
         self.files_saved = False  # Track if output files have been saved
         
-        # Initialize auto-resume functionality
-        self.checkpointer = ProgressCheckpointer()
-        self.auto_resume = AutoResumeManager(self.checkpointer)
-        self.resume_data = None
-        
         self.init_ui()
         self.apply_styling()
-        self.check_for_auto_resume()
+        self._preload_test_files()
         
     def init_ui(self):
         """Initialize the user interface"""
@@ -136,6 +130,7 @@ class MainWindow(QMainWindow):
         self.manual_matching_widget.finished.connect(self.on_manual_matches_finished)
         self.manual_matching_widget.skipped.connect(self.on_manual_matches_skipped)
         self.manual_matching_widget.cancelled.connect(self.on_manual_matches_cancelled)
+        self.manual_matching_widget.match_confirmed.connect(self.on_manual_match_confirmed)
         self.bottom_stack.addWidget(self.manual_matching_widget)  # Index 1
         
         matching_layout.addWidget(self.bottom_stack, 1) # Give bottom stack stretch factor 1 to maximize height
@@ -156,8 +151,7 @@ class MainWindow(QMainWindow):
         
         # Add initial log message
         self.log_widget.add_log("Application started. Please select Excel files to begin.")
-        self.log_widget.add_log("💡 TIP: For long processing sessions, consider disabling PC sleep mode")
-        self.log_widget.add_log("   to prevent interruptions during matching.")
+        self.log_widget.add_log("<b><font color='red'>💡 TIP: For long processing sessions, consider disabling PC sleep mode to prevent interruptions during matching.</font></b>")
     
     def on_mapping_changed(self):
         """Handle bank account mapping changes"""
@@ -198,57 +192,6 @@ class MainWindow(QMainWindow):
             # Silently fail if preload doesn't work - don't interrupt normal operation
             pass
     
-    def check_for_auto_resume(self):
-        """Check for auto-resume opportunities on startup"""
-        try:
-            can_resume, resume_data = self.auto_resume.check_for_resume()
-            
-            if can_resume and resume_data:
-                self.resume_data = resume_data
-                resume_info = self.auto_resume.get_resume_info()
-                
-                self.log_widget.add_log("🔄 Auto-resume checkpoint detected!")
-                self.log_widget.add_log(f"   Previous step: {resume_info['step']}")
-                self.log_widget.add_log(f"   Progress: {resume_info['progress']}%")
-                self.log_widget.add_log(f"   Matches found: {resume_info['matches_found']}")
-                self.log_widget.add_log(f"   Files: {resume_info['file1']} & {resume_info['file2']}")
-                self.log_widget.add_log(f"   Time: {resume_info['timestamp']}")
-                
-                # Ask user if they want to resume
-                reply = QMessageBox.question(
-                    self, 
-                    "Auto-Resume Available", 
-                    f"Found a previous matching session that was interrupted:\n\n"
-                    f"Step: {resume_info['step']}\n"
-                    f"Progress: {resume_info['progress']}%\n"
-                    f"Matches: {resume_info['matches_found']}\n\n"
-                    f"Would you like to resume from where it left off?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes
-                )
-                
-                if reply == QMessageBox.StandardButton.Yes:
-                    self.log_widget.add_log("✅ User chose to resume from checkpoint")
-                    # Set the file paths from resume data
-                    self.current_file1 = resume_data['file1_path']
-                    self.current_file2 = resume_data['file2_path']
-                    self.file_selection.set_files(self.current_file1, self.current_file2)
-                    self.log_widget.add_log("📁 Files loaded from checkpoint. Click 'Run Match' to resume.")
-                else:
-                    self.log_widget.add_log("❌ User chose not to resume. Starting fresh session.")
-                    self.auto_resume.clear_resume_data()
-                    self.resume_data = None
-                    # Preload test files if user chose not to resume
-                    self._preload_test_files()
-            else:
-                # No auto-resume available, preload test files
-                self._preload_test_files()
-                    
-        except Exception as e:
-            self.log_widget.add_log(f"⚠️ Warning: Could not check for auto-resume: {e}")
-            # Preload test files if auto-resume check failed
-            self._preload_test_files()
-    
     def apply_styling(self):
         """Apply minimal styling for button bold text"""
         from gui_styles import get_main_stylesheet
@@ -269,31 +212,6 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "No Files", "Please select both Excel files first.")
             return
         
-        # Show sleep prevention warning for large files
-        try:
-            import os
-            file1_size = os.path.getsize(self.current_file1) / (1024 * 1024)  # MB
-            file2_size = os.path.getsize(self.current_file2) / (1024 * 1024)  # MB
-            
-            if file1_size > 10 or file2_size > 10:  # Files larger than 10MB
-                reply = QMessageBox.question(
-                    self,
-                    "Large File Processing",
-                    f"Processing large files ({file1_size:.1f}MB & {file2_size:.1f}MB).\n\n"
-                    f"This may take a while. The application will:\n"
-                    f"• Prevent PC sleep during processing\n"
-                    f"• Save progress checkpoints every 30 seconds\n"
-                    f"• Allow auto-resume if interrupted\n\n"
-                    f"Continue with processing?",
-                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                    QMessageBox.StandardButton.Yes
-                )
-                
-                if reply != QMessageBox.StandardButton.Yes:
-                    return
-        except Exception:
-            pass  # If we can't get file sizes, just continue
-        
         # Record start time
         self.start_time = datetime.now()
         start_time_str = self.start_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -311,17 +229,14 @@ class MainWindow(QMainWindow):
         self.results_widget.reset_results()
         self.overall_progress.setValue(0)
         
-        # Create and start matching thread with resume data
-        self.matching_thread = MatchingThread(self.current_file1, self.current_file2, self.resume_data)
+        # Create and start matching thread
+        self.matching_thread = MatchingThread(self.current_file1, self.current_file2)
         self.matching_thread.progress_updated.connect(self.update_overall_progress)
         self.matching_thread.step_completed.connect(self.processing_widget.complete_step)
         self.matching_thread.matching_finished.connect(self.on_matching_finished)
         self.matching_thread.error_occurred.connect(self.on_matching_error)
         self.matching_thread.log_message.connect(self.log_widget.add_log)
         self.matching_thread.start()
-        
-        # Clear resume data after starting (will be recreated if needed)
-        self.resume_data = None
     
     def update_overall_progress(self, step: int, status: str, matches_found: int):
         """Update overall progress bar"""
@@ -332,6 +247,7 @@ class MainWindow(QMainWindow):
         """Handle matching completion"""
         self.current_matches = matches
         self.files_saved = False  # Reset files saved state
+        self.current_statistics = statistics  # Store statistics for real-time updates
         self.results_widget.update_results(statistics, enable_buttons=False)  # Don't enable buttons yet
         
         self.log_widget.add_log(f"Matching completed successfully! Found {statistics['total_matches']} matches.")
@@ -400,6 +316,9 @@ class MainWindow(QMainWindow):
                 self.log_widget.add_log(f"📋 Found {len(potential_matches)} potential manual match pairs")
                 self.log_widget.add_log("   Switching to manual matching review...")
                 
+                # Update progress bar to show manual matching phase
+                self.overall_progress.setValue(76)
+                
                 # Load potential matches into the widget and switch view
                 self.manual_matching_widget.load_potential_matches(
                     potential_matches, self.current_file1, self.current_file2
@@ -414,6 +333,24 @@ class MainWindow(QMainWindow):
             self.log_widget.add_log(f"❌ Error during manual matching check: {str(e)}")
             # Fallback: generate output files with automatic matches
             self.create_output_files_with_progress(automatic_matches)
+
+    def on_manual_match_confirmed(self, count: int):
+        """Handle real-time manual match confirmation"""
+        # Update manual match count in real-time
+        # Calculate automatic matches total from current statistics
+        if hasattr(self, 'current_statistics') and self.current_statistics:
+            automatic_total = (
+                self.current_statistics.get('narration_matches', 0) +
+                self.current_statistics.get('lc_matches', 0) +
+                self.current_statistics.get('po_matches', 0) +
+                self.current_statistics.get('interunit_matches', 0) +
+                self.current_statistics.get('settlement_matches', 0) +
+                self.current_statistics.get('usd_matches', 0)
+            )
+            self.results_widget.update_manual_match_count(count, automatic_total)
+        else:
+            # Fallback: update without automatic total
+            self.results_widget.update_manual_match_count(count)
 
     def on_manual_matches_finished(self, confirmed_manual_matches):
         """Handle completion of manual matching review"""
@@ -432,6 +369,33 @@ class MainWindow(QMainWindow):
         # Sort matches by Match ID
         all_matches.sort(key=lambda x: x['match_id'])
         
+        # Update statistics to include manual matches
+        # Count matches by type from all_matches
+        narration_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Narration')
+        lc_count = sum(1 for m in all_matches if m.get('Match_Type') == 'LC')
+        po_count = sum(1 for m in all_matches if m.get('Match_Type') == 'PO')
+        interunit_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Interunit')
+        settlement_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Settlement')
+        usd_count = sum(1 for m in all_matches if m.get('Match_Type') == 'USD')
+        manual_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Manual')
+        
+        updated_statistics = {
+            'total_matches': len(all_matches),
+            'narration_matches': narration_count,
+            'lc_matches': lc_count,
+            'po_matches': po_count,
+            'interunit_matches': interunit_count,
+            'settlement_matches': settlement_count,
+            'usd_matches': usd_count,
+            'manual_matches': manual_count
+        }
+        
+        # Update results display with new statistics
+        self.results_widget.update_results(updated_statistics, enable_buttons=False)
+        
+        # Update progress bar to show manual matching complete
+        self.overall_progress.setValue(80)
+        
         # Switch back to log view
         self.bottom_stack.setCurrentIndex(0)
         
@@ -441,12 +405,16 @@ class MainWindow(QMainWindow):
     def on_manual_matches_skipped(self):
         """Handle user skipping manual matching"""
         self.log_widget.add_log("⏭️ Manual matching skipped. Generating output files with automatic matches only.")
+        # Update progress bar
+        self.overall_progress.setValue(80)
         self.bottom_stack.setCurrentIndex(0)  # Switch back to log view
         self.create_output_files_with_progress(self.temp_automatic_matches)
 
     def on_manual_matches_cancelled(self):
         """Handle user cancelling manual matching"""
         self.log_widget.add_log("⚠️ Manual matching cancelled. Generating output files with automatic matches only.")
+        # Update progress bar
+        self.overall_progress.setValue(80)
         self.bottom_stack.setCurrentIndex(0)  # Switch back to log view
         self.create_output_files_with_progress(self.temp_automatic_matches)
     
@@ -456,31 +424,31 @@ class MainWindow(QMainWindow):
             # Keep processing state active during file creation
             self.processing_widget.set_processing_state(True)
             
-            # PHASE 1: PREPARATION (65-70%)
-            self.overall_progress.setValue(67)
+            # PHASE 1: PREPARATION (80-85%)
+            self.overall_progress.setValue(80)
             self.log_widget.add_log("📁 Preparing file creation...")
             self.log_widget.add_log(f"   - Processing {len(matches)} matches for output files")
             
             from interunit_loan_matcher import ExcelTransactionMatcher
             matcher = ExcelTransactionMatcher(self.current_file1, self.current_file2)
             
-            # PHASE 2: LOAD TRANSACTION DATA (70-85%) - This takes significant time
-            self.overall_progress.setValue(72)
+            # PHASE 2: LOAD TRANSACTION DATA (85-90%) - This takes significant time
+            self.overall_progress.setValue(85)
             self.log_widget.add_log("📖 Loading first transaction file...")
             self.log_widget.add_log(f"   - Reading: {self.current_file1}")
             self.log_widget.add_log("   - Processing Excel file structure...")
             matcher.metadata1, matcher.transactions1 = matcher.read_complex_excel(self.current_file1)
             self.log_widget.add_log(f"   ✅ Loaded {len(matcher.transactions1)} transactions from File 1")
             
-            self.overall_progress.setValue(79)
+            self.overall_progress.setValue(88)
             self.log_widget.add_log("📖 Loading second transaction file...")
             self.log_widget.add_log(f"   - Reading: {self.current_file2}")
             self.log_widget.add_log("   - Processing Excel file structure...")
             matcher.metadata2, matcher.transactions2 = matcher.read_complex_excel(self.current_file2)
             self.log_widget.add_log(f"   ✅ Loaded {len(matcher.transactions2)} transactions from File 2")
             
-            # PHASE 3: CREATE MATCHED FILES (85-100%) - This is the longest part
-            self.overall_progress.setValue(85)
+            # PHASE 3: CREATE MATCHED FILES (90-100%) - This is the longest part
+            self.overall_progress.setValue(90)
             self.log_widget.add_log("📝 Creating matched Excel files...")
             self.log_widget.add_log("   - Generating output files with matched transactions...")
             self.log_widget.add_log("   - This may take 30+ seconds for large files...")
@@ -643,11 +611,17 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "No Files Selected", "Please select input files first.")
     
     def closeEvent(self, event):
-        """Handle application close event"""
+        """Handle application close event with confirmation"""
+        # Always show confirmation dialog for this important program
         if self.matching_thread and self.matching_thread.isRunning():
-            reply = QMessageBox.question(self, "Exit Confirmation",
-                                       "Matching is in progress. Are you sure you want to exit?",
-                                       QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+            reply = QMessageBox.question(
+                self,
+                "Exit Confirmation",
+                "Matching is in progress. Are you sure you want to exit?\n\n"
+                "Any unsaved progress will be lost.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
             if reply == QMessageBox.StandardButton.Yes:
                 self.matching_thread.cancel()
                 self.matching_thread.wait()
@@ -655,4 +629,16 @@ class MainWindow(QMainWindow):
             else:
                 event.ignore()
         else:
-            event.accept()
+            # Show confirmation even when not processing
+            reply = QMessageBox.question(
+                self,
+                "Exit Confirmation",
+                "Are you sure you want to exit the Interunit Loan Matcher?\n\n"
+                "Make sure all files have been saved before closing.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply == QMessageBox.StandardButton.Yes:
+                event.accept()
+            else:
+                event.ignore()

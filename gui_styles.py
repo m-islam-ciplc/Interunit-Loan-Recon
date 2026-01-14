@@ -88,6 +88,11 @@ def get_main_stylesheet():
             color: #C62828;
             border-color: #FFCDD2;
         }
+        QLabel[class*="manual-pill"] {
+            background-color: #FFF9C4;
+            color: #F57F17;
+            border-color: #FFF59D;
+        }
         QLabel[class*="total-pill"] {
             background-color: #F5F5F5;
             color: #424242;

@@ -1,0 +1,63 @@
+Found 12 .xlsx files under Resources/\n\nHeuristic: scan all sheets/cells as text; normalize to digits; keep 10-20 digits.\nHigh confidence: appeared with A/C, OD#, STD, SND keywords.\nLow confidence: other long digit-ish tokens (may include false positives).\nFiltered out common 10-digit date-like keys (YYYYMMDDxx).\n\n=== PER FILE (HIGH) ===
+
+Resources/New Geo to Steel.xlsx (0):
+
+Resources/New Steel to Geo.xlsx (0):
+
+Resources/Pole to Steel.xlsx (0):
+
+Resources/Steel to Pole.xlsx (0):
+
+Resources/Steel-GeoTex/Interunit GeoTex.xlsx (0):
+
+Resources/Steel-GeoTex/Interunit Steel.xlsx (3):
+- 1012040163265
+- 1012210603129
+- 1501202870121001
+
+Resources/Steel-Pole/Pole Book STEEL.xlsx (0):
+
+Resources/Steel-Pole/Steel Book POLE.xlsx (0):
+
+Resources/Steel-Trans/Steel book Trans.xlsx (0):
+
+Resources/Steel-Trans/Steel book Trans_MATCHED.xlsx (0):
+
+Resources/Steel-Trans/Trans book Steel.xlsx (0):
+
+Resources/Steel-Trans/Trans book Steel_MATCHED.xlsx (0):
+
+=== PER FILE (LOW) ===
+
+Resources/New Geo to Steel.xlsx (0):
+
+Resources/New Steel to Geo.xlsx (0):
+
+Resources/Pole to Steel.xlsx (0):
+
+Resources/Steel to Pole.xlsx (0):
+
+Resources/Steel-GeoTex/Interunit GeoTex.xlsx (0):
+
+Resources/Steel-GeoTex/Interunit Steel.xlsx (0):
+
+Resources/Steel-Pole/Pole Book STEEL.xlsx (0):
+
+Resources/Steel-Pole/Steel Book POLE.xlsx (0):
+
+Resources/Steel-Trans/Steel book Trans.xlsx (0):
+
+Resources/Steel-Trans/Steel book Trans_MATCHED.xlsx (0):
+
+Resources/Steel-Trans/Trans book Steel.xlsx (0):
+
+Resources/Steel-Trans/Trans book Steel_MATCHED.xlsx (0):
+
+=== OVERALL UNIQUE (HIGH) ===
+Total unique HIGH: 3
+- 1012040163265
+- 1012210603129
+- 1501202870121001
+
+=== OVERALL UNIQUE (LOW) ===
+Total unique LOW: 0

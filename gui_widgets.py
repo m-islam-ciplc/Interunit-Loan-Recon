@@ -186,7 +186,7 @@ class FileSelectionWidget(QWidget):
         self.run_match_button.setEnabled(bool(self.file1_path and self.file2_path))
     
     def set_files(self, file1_path: str, file2_path: str):
-        """Set files programmatically (for auto-resume)"""
+        """Set files programmatically"""
         self.file1_path = file1_path
         self.file2_path = file2_path
         self.update_file_display()
@@ -443,6 +443,11 @@ class ResultsWidget(QWidget):
         self.usd_matches_label.setProperty("class", "match-pill usd-pill")
         single_row_layout.addWidget(self.usd_matches_label)
         
+        # Manual Matches
+        self.manual_matches_label = QLabel("Manual: 0")
+        self.manual_matches_label.setProperty("class", "match-pill manual-pill")
+        single_row_layout.addWidget(self.manual_matches_label)
+        
         # Total Matches
         single_row_layout.addStretch(1)
         
@@ -477,20 +482,38 @@ class ResultsWidget(QWidget):
     
     def update_results(self, statistics: Dict[str, Any], enable_buttons: bool = True):
         """Update results display with statistics"""
-        self.narration_matches_label.setText(f"Narration: {statistics.get('narration_matches', 0)}")
-        self.lc_matches_label.setText(f"LC: {statistics.get('lc_matches', 0)}")
-        self.po_matches_label.setText(f"PO: {statistics.get('po_matches', 0)}")
-        self.interunit_matches_label.setText(f"Interunit: {statistics.get('interunit_matches', 0)}")
-        self.settlement_matches_label.setText(f"Settlement: {statistics.get('settlement_matches', 0)}")
-        self.usd_matches_label.setText(f"USD: {statistics.get('usd_matches', 0)}")
+        narration_count = statistics.get('narration_matches', 0)
+        lc_count = statistics.get('lc_matches', 0)
+        po_count = statistics.get('po_matches', 0)
+        interunit_count = statistics.get('interunit_matches', 0)
+        settlement_count = statistics.get('settlement_matches', 0)
+        usd_count = statistics.get('usd_matches', 0)
+        manual_count = statistics.get('manual_matches', 0)
+        
+        # Update labels and show/hide based on count
+        self.narration_matches_label.setText(f"Narration: {narration_count}")
+        self.narration_matches_label.setVisible(narration_count > 0)
+        
+        self.lc_matches_label.setText(f"LC: {lc_count}")
+        self.lc_matches_label.setVisible(lc_count > 0)
+        
+        self.po_matches_label.setText(f"PO: {po_count}")
+        self.po_matches_label.setVisible(po_count > 0)
+        
+        self.interunit_matches_label.setText(f"Interunit: {interunit_count}")
+        self.interunit_matches_label.setVisible(interunit_count > 0)
+        
+        self.settlement_matches_label.setText(f"Settlement: {settlement_count}")
+        self.settlement_matches_label.setVisible(settlement_count > 0)
+        
+        self.usd_matches_label.setText(f"USD: {usd_count}")
+        self.usd_matches_label.setVisible(usd_count > 0)
+        
+        self.manual_matches_label.setText(f"Manual: {manual_count}")
+        self.manual_matches_label.setVisible(manual_count > 0)
         
         # Calculate total matches
-        total = (statistics.get('narration_matches', 0) + 
-                statistics.get('lc_matches', 0) + 
-                statistics.get('po_matches', 0) + 
-                statistics.get('interunit_matches', 0) +
-                statistics.get('settlement_matches', 0) +
-                statistics.get('usd_matches', 0))
+        total = narration_count + lc_count + po_count + interunit_count + settlement_count + usd_count + manual_count
         self.total_matches_label.setText(f"Total Matches: {total}")
         
         # Enable the Open buttons only if explicitly requested and there are matches
@@ -498,14 +521,62 @@ class ResultsWidget(QWidget):
             self.open_folder_button.setEnabled(True)
             self.open_files_button.setEnabled(True)
     
+    def update_manual_match_count(self, count: int, automatic_total: int = 0):
+        """Update manual match count in real-time"""
+        self.manual_matches_label.setText(f"Manual: {count}")
+        # Show/hide manual label based on count
+        self.manual_matches_label.setVisible(count > 0)
+        
+        # Update total matches (automatic_total + manual count)
+        if automatic_total > 0:
+            total = automatic_total + count
+            self.total_matches_label.setText(f"Total Matches: {total}")
+        else:
+            # If automatic_total not provided, calculate from current label text values
+            # Read actual values from text, regardless of visibility
+            try:
+                narration = int(self.narration_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                narration = 0
+            try:
+                lc = int(self.lc_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                lc = 0
+            try:
+                po = int(self.po_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                po = 0
+            try:
+                interunit = int(self.interunit_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                interunit = 0
+            try:
+                settlement = int(self.settlement_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                settlement = 0
+            try:
+                usd = int(self.usd_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                usd = 0
+            total = narration + lc + po + interunit + settlement + usd + count
+            self.total_matches_label.setText(f"Total Matches: {total}")
+    
     def reset_results(self):
         """Reset results display"""
         self.narration_matches_label.setText("Narration: 0")
+        self.narration_matches_label.setVisible(False)
         self.lc_matches_label.setText("LC: 0")
+        self.lc_matches_label.setVisible(False)
         self.po_matches_label.setText("PO: 0")
+        self.po_matches_label.setVisible(False)
         self.interunit_matches_label.setText("Interunit: 0")
+        self.interunit_matches_label.setVisible(False)
         self.settlement_matches_label.setText("Settlement: 0")
+        self.settlement_matches_label.setVisible(False)
         self.usd_matches_label.setText("USD: 0")
+        self.usd_matches_label.setVisible(False)
+        self.manual_matches_label.setText("Manual: 0")
+        self.manual_matches_label.setVisible(False)
         self.total_matches_label.setText("Total Matches: 0")
         self.open_folder_button.setEnabled(False)
         self.open_files_button.setEnabled(False)

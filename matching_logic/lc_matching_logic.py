@@ -65,8 +65,8 @@ class LCMatchingLogic:
                 
             print(f"\n--- Processing File 1 Row {idx1} with LC: {lc1} ---")
             
-            # Find the transaction block header row for this LC in File 1
-            block_header1 = self.block_identifier.find_transaction_block_header(idx1, transactions1)
+            # Find the transaction block header row for this LC in File 1 (with caching)
+            block_header1 = self.block_identifier.find_transaction_block_header(idx1, transactions1, file1_path)
             
             # Extract amounts and lender/borrower status using universal method
             if file1_path:
@@ -99,8 +99,8 @@ class LCMatchingLogic:
                     
                 print(f"    Checking File 2 Row {idx2} with LC: {lc2}")
                 
-                # Find the transaction block header row for this LC in File 2
-                block_header2 = self.block_identifier.find_transaction_block_header(idx2, transactions2)
+                # Find the transaction block header row for this LC in File 2 (with caching)
+                block_header2 = self.block_identifier.find_transaction_block_header(idx2, transactions2, file2_path)
                 
                 # Extract amounts and lender/borrower status using universal method
                 if file2_path:

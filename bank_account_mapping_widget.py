@@ -112,9 +112,28 @@ class BankAccountMappingWidget(QWidget):
         table_section_layout.setSpacing(5)
         table_section.setLayout(table_section_layout)
         
-        table_label = QLabel("Current Mappings:")
-        table_label.setProperty("class", "title")  # Make title bold
-        table_section_layout.addWidget(table_label)
+        # Search row (filter mappings)
+        search_row = QWidget()
+        search_layout = QHBoxLayout()
+        search_layout.setContentsMargins(0, 0, 0, 0)
+        search_layout.setSpacing(5)
+
+        search_label = QLabel("Search Current Mappings:")
+        search_label.setProperty("class", "title")  # Make label bold like other titles
+        search_layout.addWidget(search_label)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Type to filter by account name or alias...")
+        self.search_input.textChanged.connect(self.apply_search_filter)
+        self.search_input.setMinimumHeight(30)
+        search_layout.addWidget(self.search_input, 1)
+
+        self.clear_search_button = QPushButton("Clear Search")
+        self.clear_search_button.clicked.connect(self.clear_search)
+        search_layout.addWidget(self.clear_search_button)
+
+        search_row.setLayout(search_layout)
+        table_section_layout.addWidget(search_row)
         
         # Create table
         self.table = QTableWidget()
@@ -179,7 +198,27 @@ class BankAccountMappingWidget(QWidget):
         valid, account_name, codes = self.validate_inputs()
         if not valid:
             return
-        
+
+        # Duplicate detection: warn if account already exists
+        if account_name in self.mapping:
+            existing_codes = self.mapping.get(account_name, [])
+            existing_codes_text = ', '.join(existing_codes) if isinstance(existing_codes, list) else str(existing_codes)
+            new_codes_text = ', '.join(codes)
+
+            reply = QMessageBox.question(
+                self,
+                "Duplicate Mapping",
+                "This bank account is already mapped.\n\n"
+                f"Account:\n{account_name}\n\n"
+                f"Existing Aliases:\n{existing_codes_text}\n\n"
+                f"New Aliases:\n{new_codes_text}\n\n"
+                "Do you want to overwrite the existing mapping?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
         # Add or update the mapping
         self.mapping[account_name] = codes
         
@@ -288,6 +327,35 @@ class BankAccountMappingWidget(QWidget):
         
         # Connect cell changed signal to handle direct editing
         self.table.cellChanged.connect(self.on_cell_changed)
+
+        # Re-apply any active search filter after reload
+        self.apply_search_filter()
+
+    def clear_search(self):
+        """Clear the search box and show all rows."""
+        if hasattr(self, 'search_input'):
+            self.search_input.clear()
+        self.apply_search_filter()
+
+    def apply_search_filter(self):
+        """Filter visible rows by search query (account name or alias)."""
+        if not hasattr(self, 'search_input'):
+            return
+
+        query = self.search_input.text().strip().lower()
+        for row in range(self.table.rowCount()):
+            account_item = self.table.item(row, 0)
+            codes_item = self.table.item(row, 1)
+            account_text = account_item.text().lower() if account_item else ""
+            codes_text = codes_item.text().lower() if codes_item else ""
+
+            # Show all when query is empty
+            if not query:
+                self.table.setRowHidden(row, False)
+                continue
+
+            matches = (query in account_text) or (query in codes_text)
+            self.table.setRowHidden(row, not matches)
     
     def on_cell_changed(self, row, column):
         """Handle direct cell editing in the table"""

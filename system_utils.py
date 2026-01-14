@@ -1,17 +1,14 @@
 """
 System Utilities for Sleep Prevention and Process Monitoring
-Handles PC sleep prevention, progress checkpointing, and auto-resume functionality
+Handles PC sleep prevention and process monitoring
 """
 
 import os
 import sys
-import json
 import time
 import ctypes
 import platform
 from pathlib import Path
-from datetime import datetime
-from typing import Dict, Any, Optional, Tuple
 import threading
 
 
@@ -100,100 +97,6 @@ class SystemSleepPrevention:
                 pass
 
 
-class ProgressCheckpointer:
-    """Handles progress checkpointing and auto-resume functionality"""
-    
-    def __init__(self, checkpoint_dir: str = "checkpoints"):
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoint_dir.mkdir(exist_ok=True)
-        self.current_checkpoint = None
-        self.checkpoint_interval = 30  # Save checkpoint every 30 seconds
-        
-    def create_checkpoint(self, 
-                         step: str, 
-                         progress: int, 
-                         matches_found: int,
-                         file1_path: str,
-                         file2_path: str,
-                         matches: list = None,
-                         statistics: dict = None) -> str:
-        """Create a progress checkpoint"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        checkpoint_id = f"checkpoint_{timestamp}_{step.lower().replace(' ', '_')}"
-        
-        checkpoint_data = {
-            "checkpoint_id": checkpoint_id,
-            "timestamp": timestamp,
-            "step": step,
-            "progress": progress,
-            "matches_found": matches_found,
-            "file1_path": file1_path,
-            "file2_path": file2_path,
-            "matches": matches or [],
-            "statistics": statistics or {},
-            "system_info": {
-                "platform": platform.system(),
-                "python_version": sys.version,
-                "process_id": os.getpid()
-            }
-        }
-        
-        checkpoint_file = self.checkpoint_dir / f"{checkpoint_id}.json"
-        
-        try:
-            with open(checkpoint_file, 'w', encoding='utf-8') as f:
-                json.dump(checkpoint_data, f, indent=2, default=str)
-            
-            self.current_checkpoint = checkpoint_id
-            return checkpoint_id
-            
-        except Exception as e:
-            print(f"Warning: Could not create checkpoint: {e}")
-            return None
-    
-    def get_latest_checkpoint(self) -> Optional[Dict[str, Any]]:
-        """Get the most recent checkpoint"""
-        try:
-            checkpoint_files = list(self.checkpoint_dir.glob("checkpoint_*.json"))
-            if not checkpoint_files:
-                return None
-            
-            # Sort by modification time, get the latest
-            latest_file = max(checkpoint_files, key=lambda f: f.stat().st_mtime)
-            
-            with open(latest_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-                
-        except Exception as e:
-            print(f"Warning: Could not read checkpoint: {e}")
-            return None
-    
-    def cleanup_old_checkpoints(self, keep_last: int = 3):
-        """Clean up old checkpoints, keeping only the most recent ones"""
-        try:
-            checkpoint_files = list(self.checkpoint_dir.glob("checkpoint_*.json"))
-            if len(checkpoint_files) <= keep_last:
-                return
-            
-            # Sort by modification time, keep the most recent
-            checkpoint_files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
-            
-            for old_file in checkpoint_files[keep_last:]:
-                old_file.unlink()
-                
-        except Exception as e:
-            print(f"Warning: Could not cleanup old checkpoints: {e}")
-    
-    def delete_checkpoint(self, checkpoint_id: str):
-        """Delete a specific checkpoint"""
-        try:
-            checkpoint_file = self.checkpoint_dir / f"{checkpoint_id}.json"
-            if checkpoint_file.exists():
-                checkpoint_file.unlink()
-        except Exception as e:
-            print(f"Warning: Could not delete checkpoint: {e}")
-
-
 class ProcessMonitor:
     """Monitors process health and detects interruptions"""
     
@@ -264,49 +167,3 @@ class ProcessMonitor:
         if self.last_activity_time:
             return time.time() - self.last_activity_time
         return 0.0
-
-
-class AutoResumeManager:
-    """Manages auto-resume functionality"""
-    
-    def __init__(self, checkpointer: ProgressCheckpointer):
-        self.checkpointer = checkpointer
-        self.resume_data = None
-    
-    def check_for_resume(self) -> Tuple[bool, Optional[Dict[str, Any]]]:
-        """Check if there's a checkpoint to resume from"""
-        checkpoint = self.checkpointer.get_latest_checkpoint()
-        
-        if not checkpoint:
-            return False, None
-        
-        # Check if checkpoint is recent (within last 24 hours)
-        checkpoint_time = datetime.strptime(checkpoint['timestamp'], "%Y%m%d_%H%M%S")
-        time_diff = datetime.now() - checkpoint_time
-        
-        if time_diff.total_seconds() > 86400:  # 24 hours
-            print("Checkpoint is too old, not resuming")
-            return False, None
-        
-        self.resume_data = checkpoint
-        return True, checkpoint
-    
-    def get_resume_info(self) -> Optional[Dict[str, Any]]:
-        """Get information about the checkpoint to resume from"""
-        if not self.resume_data:
-            return None
-        
-        return {
-            "step": self.resume_data['step'],
-            "progress": self.resume_data['progress'],
-            "matches_found": self.resume_data['matches_found'],
-            "timestamp": self.resume_data['timestamp'],
-            "file1": os.path.basename(self.resume_data['file1_path']),
-            "file2": os.path.basename(self.resume_data['file2_path'])
-        }
-    
-    def clear_resume_data(self):
-        """Clear resume data after successful completion"""
-        if self.resume_data:
-            self.checkpointer.delete_checkpoint(self.resume_data['checkpoint_id'])
-            self.resume_data = None

@@ -45,6 +45,82 @@ class NarrationMatchingLogic:
         # Initialize unmatched tracker for audit info
         unmatched_tracker = get_unmatched_tracker()
         
+        # OPTIMIZATION: Build narration index for fast lookups
+        if file1_path and file2_path:
+            print("  - Building narration index for fast lookups...")
+            narration_index1 = self.block_identifier.build_narration_index(transactions1, file1_path)
+            narration_index2 = self.block_identifier.build_narration_index(transactions2, file2_path)
+            print(f"  - File 1: {len(narration_index1)} unique narrations")
+            print(f"  - File 2: {len(narration_index2)} unique narrations")
+            
+            # Find common narrations
+            common_narrations = set(narration_index1.keys()) & set(narration_index2.keys())
+            print(f"  - Common narrations: {len(common_narrations)}")
+            
+            # Process each common narration
+            processed_narrations = set()
+            
+            for narration in common_narrations:
+                if narration in processed_narrations:
+                    continue
+                
+                file1_entries = narration_index1[narration]
+                file2_entries = narration_index2[narration]
+                
+                # Check all combinations for matching amounts and opposite types
+                for block_header1, description_idx1, amounts1 in file1_entries:
+                    file1_debit = amounts1.get('debit', 0) if amounts1.get('debit') else 0.0
+                    file1_credit = amounts1.get('credit', 0) if amounts1.get('credit') else 0.0
+                    file1_is_lender = amounts1.get('is_lender', False)
+                    file1_is_borrower = amounts1.get('is_borrower', False)
+                    file1_amount = amounts1.get('amount', 0.0)
+                    
+                    if file1_amount <= 0:
+                        continue
+                    
+                    for block_header2, description_idx2, amounts2 in file2_entries:
+                        file2_debit = amounts2.get('debit', 0) if amounts2.get('debit') else 0.0
+                        file2_credit = amounts2.get('credit', 0) if amounts2.get('credit') else 0.0
+                        file2_is_lender = amounts2.get('is_lender', False)
+                        file2_is_borrower = amounts2.get('is_borrower', False)
+                        file2_amount = amounts2.get('amount', 0.0)
+                        
+                        if file2_amount <= 0:
+                            continue
+                        
+                        # Check if this creates a valid lender-borrower pair
+                        if (file1_is_lender and file2_is_borrower) or (file1_is_borrower and file2_is_lender):
+                            # Ensure amounts match (lender debit = borrower credit)
+                            lender_amount = file1_debit if file1_is_lender else file2_debit
+                            borrower_amount = file1_credit if file1_is_borrower else file2_credit
+                            
+                            if lender_amount == borrower_amount and lender_amount > 0:
+                                # Valid match found
+                                match_key = (block_header1, block_header2)
+                                if match_key not in existing_matches:
+                                    match_id = match_id_manager.get_next_match_id('Narration', f"File1_Row_{block_header1}_File2_Row_{block_header2}")
+                                    match = {
+                                        'File1_Index': block_header1,
+                                        'File2_Index': block_header2,
+                                        'File1_Debit': file1_debit,
+                                        'File1_Credit': file1_credit,
+                                        'File2_Debit': file2_debit,
+                                        'File2_Credit': file2_credit,
+                                        'Match_Type': 'Narration',
+                                        'Narration': narration,
+                                        'match_id': match_id
+                                    }
+                                    matches.append(match)
+                                    existing_matches[match_key] = match
+                
+                processed_narrations.add(narration)
+            
+            print(f"  - Found {len(matches)} narration matches using index")
+            return matches
+        
+        # FALLBACK: Original logic if file paths not provided
+        print("  - Using original matching logic (file paths not provided for indexing)")
+        
         # Process each transaction in File 1 to find identical narrations
         processed_narrations = set()  # Track which narrations we've already processed
         
@@ -53,8 +129,8 @@ class NarrationMatchingLogic:
             if idx1 in processed_narrations:
                 continue
                 
-            # Find the transaction block header row for this index
-            block_header1 = self.block_identifier.find_transaction_block_header(idx1, transactions1)
+            # Find the transaction block header row for this index (with caching)
+            block_header1 = self.block_identifier.find_transaction_block_header(idx1, transactions1, file1_path)
             header_row1 = transactions1.iloc[block_header1]
             
             # Find the description row within this transaction block (narration is in description rows)
@@ -120,8 +196,8 @@ class NarrationMatchingLogic:
                 if idx2 in processed_file2_narrations:
                     continue
                     
-                # Find the transaction block header row for this index in File 2
-                block_header2 = self.block_identifier.find_transaction_block_header(idx2, transactions2)
+                # Find the transaction block header row for this index in File 2 (with caching)
+                block_header2 = self.block_identifier.find_transaction_block_header(idx2, transactions2, file2_path)
                 header_row2 = transactions2.iloc[block_header2]
                 
                 # Find the description row within this transaction block in File 2
