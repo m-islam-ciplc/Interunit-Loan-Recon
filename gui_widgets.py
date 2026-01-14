@@ -61,10 +61,21 @@ class FileSelectionWidget(QWidget):
 
         section_layout.addLayout(button_row)
         
-        # Selected files section
+        # Row for files container and Run Match button
+        files_combined_row = QHBoxLayout()
+        files_combined_row.setSpacing(10)
+        files_combined_row.setContentsMargins(0, 0, 0, 0)
+        
+        # Left side: Label + Files list
+        left_side_layout = QVBoxLayout()
+        left_side_layout.setSpacing(5) # Spacing between label and file list
+        left_side_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Selected files section label - now bold
         files_label = QLabel("Selected Ledgers")
+        files_label.setStyleSheet("font-weight: bold;")
         files_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        section_layout.addWidget(files_label)
+        left_side_layout.addWidget(files_label)
         
         # File list container - static height for 2 files
         self.files_container = QWidget()
@@ -74,19 +85,25 @@ class FileSelectionWidget(QWidget):
         files_layout.setContentsMargins(0, 0, 0, 0)
         files_layout.setSpacing(2)  # Reduced gap between filenames
         self.files_container.setLayout(files_layout)
-        section_layout.addWidget(self.files_container)
+        left_side_layout.addWidget(self.files_container)
         
-        # Add expanding spacer to push buttons down to align with Overall Progress bar
-        # This will expand to fill available space, aligning buttons with the progress bar
-        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-        section_layout.addItem(spacer)
-        
-        # Run Match button - light blue styling
+        files_combined_row.addLayout(left_side_layout, 1)  # Take most space
+
+        # Run Match button - light blue styling, moved next to files
         self.run_match_button = QPushButton("Run Match")
         self.run_match_button.setProperty("class", "run-match-button")  # Custom class for styling
+        self.run_match_button.setFixedWidth(120)  # Width to fit text comfortably
+        # Make button expand to fill the combined height of label and list
+        self.run_match_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.run_match_button.clicked.connect(self.run_matching)
         self.run_match_button.setEnabled(False)
-        section_layout.addWidget(self.run_match_button)
+        files_combined_row.addWidget(self.run_match_button)
+        
+        section_layout.addLayout(files_combined_row)
+        
+        # Add expanding spacer at the bottom to match right side's structure
+        spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        section_layout.addItem(spacer)
         
         # Add section container to main layout
         layout.addWidget(section_container)
