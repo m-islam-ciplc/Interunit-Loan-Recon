@@ -36,6 +36,7 @@ class UnmatchedTracker:
         """
         if file_index is None:
             return  # Skip if index is None
+            
         key = f"file{file_number}_index_{file_index}"
         self.unmatched_reasons[key].append(reason)
     
