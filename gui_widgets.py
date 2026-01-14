@@ -433,15 +433,15 @@ class ResultsWidget(QWidget):
         self.interunit_matches_label.setProperty("class", "match-pill interunit-pill")
         single_row_layout.addWidget(self.interunit_matches_label)
         
-        # USD Matches
-        self.usd_matches_label = QLabel("USD: 0")
-        self.usd_matches_label.setProperty("class", "match-pill usd-pill")
-        single_row_layout.addWidget(self.usd_matches_label)
-        
         # Settlement Matches
         self.settlement_matches_label = QLabel("Settlement: 0")
         self.settlement_matches_label.setProperty("class", "match-pill settlement-pill")
         single_row_layout.addWidget(self.settlement_matches_label)
+        
+        # USD Matches
+        self.usd_matches_label = QLabel("USD: 0")
+        self.usd_matches_label.setProperty("class", "match-pill usd-pill")
+        single_row_layout.addWidget(self.usd_matches_label)
         
         # Total Matches
         single_row_layout.addStretch(1)
@@ -481,16 +481,16 @@ class ResultsWidget(QWidget):
         self.lc_matches_label.setText(f"LC: {statistics.get('lc_matches', 0)}")
         self.po_matches_label.setText(f"PO: {statistics.get('po_matches', 0)}")
         self.interunit_matches_label.setText(f"Interunit: {statistics.get('interunit_matches', 0)}")
-        self.usd_matches_label.setText(f"USD: {statistics.get('usd_matches', 0)}")
         self.settlement_matches_label.setText(f"Settlement: {statistics.get('settlement_matches', 0)}")
+        self.usd_matches_label.setText(f"USD: {statistics.get('usd_matches', 0)}")
         
         # Calculate total matches
         total = (statistics.get('narration_matches', 0) + 
                 statistics.get('lc_matches', 0) + 
                 statistics.get('po_matches', 0) + 
-                statistics.get('interunit_matches', 0) + 
-                statistics.get('usd_matches', 0) +
-                statistics.get('settlement_matches', 0))
+                statistics.get('interunit_matches', 0) +
+                statistics.get('settlement_matches', 0) +
+                statistics.get('usd_matches', 0))
         self.total_matches_label.setText(f"Total Matches: {total}")
         
         # Enable the Open buttons only if explicitly requested and there are matches
@@ -504,8 +504,8 @@ class ResultsWidget(QWidget):
         self.lc_matches_label.setText("LC: 0")
         self.po_matches_label.setText("PO: 0")
         self.interunit_matches_label.setText("Interunit: 0")
-        self.usd_matches_label.setText("USD: 0")
         self.settlement_matches_label.setText("Settlement: 0")
+        self.usd_matches_label.setText("USD: 0")
         self.total_matches_label.setText("Total Matches: 0")
         self.open_folder_button.setEnabled(False)
         self.open_files_button.setEnabled(False)
