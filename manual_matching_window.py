@@ -496,6 +496,14 @@ class ManualMatchingWindow(QDialog):
         """Get the list of confirmed matches."""
         return self.confirmed_matches
     
+    def keyPressEvent(self, event):
+        """Override key press event to prevent accidental closing on Esc."""
+        if event.key() == Qt.Key.Key_Escape:
+            # Trigger close event which has the confirmation dialog
+            self.close()
+        else:
+            super().keyPressEvent(event)
+    
     def closeEvent(self, event):
         """Handle window close event with confirmation."""
         # Ask for confirmation before closing
