@@ -2409,6 +2409,12 @@ class   ExcelTransactionMatcher:
             
             # Process File 1 unmatched records
             for idx in range(len(file1_matched)):
+                # Skip if this is an Opening Balance row
+                # Original Column C (Ledger/Particulars) is at index 4 in file1_matched
+                particulars_c = str(file1_matched.iloc[idx, 4]) if idx < len(file1_matched) else ""
+                if "Opening Balance" in particulars_c:
+                    continue
+
                 # Skip if already has Match ID (matched record)
                 if pd.notna(file1_matched.iloc[idx, 0]) and file1_matched.iloc[idx, 0] != '':
                     continue
@@ -2433,6 +2439,12 @@ class   ExcelTransactionMatcher:
             
             # Process File 2 unmatched records
             for idx in range(len(file2_matched)):
+                # Skip if this is an Opening Balance row
+                # Original Column C (Ledger/Particulars) is at index 4 in file2_matched
+                particulars_c = str(file2_matched.iloc[idx, 4]) if idx < len(file2_matched) else ""
+                if "Opening Balance" in particulars_c:
+                    continue
+
                 # Skip if already has Match ID (matched record)
                 if pd.notna(file2_matched.iloc[idx, 0]) and file2_matched.iloc[idx, 0] != '':
                     continue
