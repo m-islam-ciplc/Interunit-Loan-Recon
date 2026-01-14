@@ -9,7 +9,7 @@ from typing import Optional
 from datetime import datetime
 
 from PySide6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QTabWidget, QFrame
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QMessageBox, QTabWidget, QFrame, QStackedWidget
 )
 from PySide6.QtCore import Qt
 
@@ -19,7 +19,7 @@ from matching_thread import MatchingThread
 from interunit_loan_matcher import ExcelTransactionMatcher
 from system_utils import AutoResumeManager, ProgressCheckpointer
 from bank_account_mapping_widget import BankAccountMappingWidget
-from manual_matching_window import ManualMatchingWindow
+from manual_matching_window import ManualMatchingWidget
 from matching_logic import ManualMatchingLogic
 from transaction_block_identifier import TransactionBlockIdentifier
 
@@ -124,9 +124,21 @@ class MainWindow(QMainWindow):
         horizontal_separator2.setFixedHeight(2)
         matching_layout.addWidget(horizontal_separator2)
         
+        # Bottom stack for Process Log and Manual Matching
+        self.bottom_stack = QStackedWidget()
+        
         # Process Log section - full width
         self.log_widget = LogWidget()
-        matching_layout.addWidget(self.log_widget)
+        self.bottom_stack.addWidget(self.log_widget)  # Index 0
+        
+        # Manual Matching section - full width
+        self.manual_matching_widget = ManualMatchingWidget()
+        self.manual_matching_widget.finished.connect(self.on_manual_matches_finished)
+        self.manual_matching_widget.skipped.connect(self.on_manual_matches_skipped)
+        self.manual_matching_widget.cancelled.connect(self.on_manual_matches_cancelled)
+        self.bottom_stack.addWidget(self.manual_matching_widget)  # Index 1
+        
+        matching_layout.addWidget(self.bottom_stack, 1) # Give bottom stack stretch factor 1 to maximize height
         
         matching_tab.setLayout(matching_layout)
         self.tab_widget.addTab(matching_tab, "Matching")
@@ -363,8 +375,11 @@ class MainWindow(QMainWindow):
             self.processing_widget.set_processing_state(False)
     
     def _check_manual_matches(self, automatic_matches: list):
-        """Check for potential manual matches and launch manual matching window"""
+        """Check for potential manual matches and switch to manual matching view if needed"""
         try:
+            # Store automatic matches to combine later
+            self.temp_automatic_matches = automatic_matches
+            
             # Get data from matching thread
             transactions1 = self.matching_thread.transactions1_data
             transactions2 = self.matching_thread.transactions2_data
@@ -383,43 +398,13 @@ class MainWindow(QMainWindow):
             
             if potential_matches and len(potential_matches) > 0:
                 self.log_widget.add_log(f"📋 Found {len(potential_matches)} potential manual match pairs")
-                self.log_widget.add_log("   Opening manual matching window...")
+                self.log_widget.add_log("   Switching to manual matching review...")
                 
-                # Launch manual matching window
-                manual_window = ManualMatchingWindow(
-                    potential_matches, self.current_file1, self.current_file2, self
+                # Load potential matches into the widget and switch view
+                self.manual_matching_widget.load_potential_matches(
+                    potential_matches, self.current_file1, self.current_file2
                 )
-                
-                result = manual_window.exec()
-                
-                if result == 2:  # Skip button clicked (done(2))
-                    # User skipped manual matching, just use automatic matches
-                    self.log_widget.add_log("⏭️ Manual matching skipped. Generating output files with automatic matches only.")
-                    self.create_output_files_with_progress(automatic_matches)
-                elif result:  # User completed manual matching (accept() returns 1)
-                    # User completed manual matching
-                    confirmed_manual_matches = manual_window.get_confirmed_matches()
-                    self.log_widget.add_log(f"✅ Manual matching completed: {len(confirmed_manual_matches)} matches confirmed")
-                    
-                    # Combine automatic and manual matches
-                    all_matches = automatic_matches + confirmed_manual_matches
-                    
-                    # Assign sequential Match IDs to all matches
-                    match_counter = 1
-                    for match in all_matches:
-                        match_id = f"M{match_counter:03d}"
-                        match['match_id'] = match_id
-                        match_counter += 1
-                    
-                    # Sort matches by Match ID
-                    all_matches.sort(key=lambda x: x['match_id'])
-                    
-                    # Generate output files with combined matches
-                    self.create_output_files_with_progress(all_matches)
-                else:  # User cancelled (reject() returns 0)
-                    # User cancelled manual matching, just use automatic matches
-                    self.log_widget.add_log("⚠️ Manual matching cancelled. Generating output files with automatic matches only.")
-                    self.create_output_files_with_progress(automatic_matches)
+                self.bottom_stack.setCurrentIndex(1)  # Show Manual Matching Widget
             else:
                 # No potential manual matches, generate output files with automatic matches
                 self.log_widget.add_log("   No potential manual matches found.")
@@ -429,6 +414,41 @@ class MainWindow(QMainWindow):
             self.log_widget.add_log(f"❌ Error during manual matching check: {str(e)}")
             # Fallback: generate output files with automatic matches
             self.create_output_files_with_progress(automatic_matches)
+
+    def on_manual_matches_finished(self, confirmed_manual_matches):
+        """Handle completion of manual matching review"""
+        self.log_widget.add_log(f"✅ Manual matching completed: {len(confirmed_manual_matches)} matches confirmed")
+        
+        # Combine automatic and manual matches
+        all_matches = self.temp_automatic_matches + confirmed_manual_matches
+        
+        # Assign sequential Match IDs to all matches
+        match_counter = 1
+        for match in all_matches:
+            match_id = f"M{match_counter:03d}"
+            match['match_id'] = match_id
+            match_counter += 1
+        
+        # Sort matches by Match ID
+        all_matches.sort(key=lambda x: x['match_id'])
+        
+        # Switch back to log view
+        self.bottom_stack.setCurrentIndex(0)
+        
+        # Generate output files with combined matches
+        self.create_output_files_with_progress(all_matches)
+
+    def on_manual_matches_skipped(self):
+        """Handle user skipping manual matching"""
+        self.log_widget.add_log("⏭️ Manual matching skipped. Generating output files with automatic matches only.")
+        self.bottom_stack.setCurrentIndex(0)  # Switch back to log view
+        self.create_output_files_with_progress(self.temp_automatic_matches)
+
+    def on_manual_matches_cancelled(self):
+        """Handle user cancelling manual matching"""
+        self.log_widget.add_log("⚠️ Manual matching cancelled. Generating output files with automatic matches only.")
+        self.bottom_stack.setCurrentIndex(0)  # Switch back to log view
+        self.create_output_files_with_progress(self.temp_automatic_matches)
     
     def create_output_files_with_progress(self, matches):
         """Create output files with accurate progress tracking"""

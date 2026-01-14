@@ -10,6 +10,43 @@ def get_main_stylesheet():
             font-weight: bold;
             min-height: 25px;
         }
+        QPushButton[class="run-match-button"] {
+            background-color: #E3F2FD;
+            color: #1976D2;
+            border: 1px solid #BBDEFB;
+            border-radius: 4px;
+        }
+        QPushButton[class="run-match-button"]:hover {
+            background-color: #BBDEFB;
+        }
+        QPushButton[class="run-match-button"]:pressed {
+            background-color: #90CAF9;
+        }
+        /* Manual Matching Buttons */
+        QPushButton[class="confirm-match-button"] {
+            background-color: #E8F5E9;
+            color: #388E3C;
+            border: 1px solid #C8E6C9;
+            border-radius: 4px;
+        }
+        QPushButton[class="confirm-match-button"]:hover {
+            background-color: #C8E6C9;
+        }
+        QPushButton[class="confirm-match-button"]:pressed {
+            background-color: #A5D6A7;
+        }
+        QPushButton[class="reject-match-button"] {
+            background-color: #FFEBEE;
+            color: #C62828;
+            border: 1px solid #FFCDD2;
+            border-radius: 4px;
+        }
+        QPushButton[class="reject-match-button"]:hover {
+            background-color: #FFCDD2;
+        }
+        QPushButton[class="reject-match-button"]:pressed {
+            background-color: #EF9A9A;
+        }
         QLabel[class="title"] {
             font-weight: bold;
         }

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, Any
 
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QProgressBar, 
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QProgressBar, 
     QTextEdit, QFileDialog, QMessageBox, QApplication, QSpacerItem, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
@@ -36,7 +36,7 @@ class FileSelectionWidget(QWidget):
         section_container = QWidget()
         section_container.setContentsMargins(0, 0, 0, 0)  # No container margins
         section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(15, 15, 15, 10)  # Reduced bottom padding for equal distance from separator line
+        section_layout.setContentsMargins(15, 10, 15, 10)  # Reduced padding to move section upward
         section_container.setLayout(section_layout)
         
         # Title
@@ -45,10 +45,21 @@ class FileSelectionWidget(QWidget):
         title.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         section_layout.addWidget(title)
         
-        # Browse button
+        # Browse and Clear buttons on same row - stretched 50/50
+        button_row = QHBoxLayout()
+        button_row.setSpacing(5)
+
+        # Browse button - takes 50% width
         self.browse_button = QPushButton("Browse Ledgers")
         self.browse_button.clicked.connect(self.select_both_files)
-        section_layout.addWidget(self.browse_button)
+        button_row.addWidget(self.browse_button, 1)  # Stretch factor 1
+
+        # Clear button - takes 50% width
+        self.clear_files_button = QPushButton("Clear Ledgers")
+        self.clear_files_button.clicked.connect(self.clear_files)
+        button_row.addWidget(self.clear_files_button, 1)  # Stretch factor 1
+
+        section_layout.addLayout(button_row)
         
         # Selected files section
         files_label = QLabel("Selected Ledgers")
@@ -57,11 +68,11 @@ class FileSelectionWidget(QWidget):
         
         # File list container - static height for 2 files
         self.files_container = QWidget()
-        # Set fixed height to prevent expansion when files are added (2 file labels + padding)
-        self.files_container.setFixedHeight(80)  # Fixed height to prevent buttons from moving
+        # Set fixed height to prevent expansion when files are added (2 file labels + minimal padding)
+        self.files_container.setFixedHeight(50)  # Reduced height to fit closely together
         files_layout = QVBoxLayout()
-        files_layout.setContentsMargins(0, 0, 0, 0)  # No padding - section already has universal 15px padding
-        files_layout.setSpacing(5)  # Consistent spacing
+        files_layout.setContentsMargins(0, 0, 0, 0)
+        files_layout.setSpacing(2)  # Reduced gap between filenames
         self.files_container.setLayout(files_layout)
         section_layout.addWidget(self.files_container)
         
@@ -70,22 +81,12 @@ class FileSelectionWidget(QWidget):
         spacer = QSpacerItem(0, 0, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
         section_layout.addItem(spacer)
         
-        # Clear and Run Match buttons side by side
-        button_row = QHBoxLayout()
-        button_row.setSpacing(5)
-        
-        # Clear button
-        self.clear_files_button = QPushButton("Clear Ledgers")
-        self.clear_files_button.clicked.connect(self.clear_files)
-        button_row.addWidget(self.clear_files_button)
-        
-        # Run Match button
+        # Run Match button - light blue styling
         self.run_match_button = QPushButton("Run Match")
+        self.run_match_button.setProperty("class", "run-match-button")  # Custom class for styling
         self.run_match_button.clicked.connect(self.run_matching)
         self.run_match_button.setEnabled(False)
-        button_row.addWidget(self.run_match_button)
-        
-        section_layout.addLayout(button_row)
+        section_layout.addWidget(self.run_match_button)
         
         # Add section container to main layout
         layout.addWidget(section_container)
@@ -251,7 +252,7 @@ class ProcessingWidget(QWidget):
         section_container = QWidget()
         section_container.setContentsMargins(0, 0, 0, 0)  # No container margins
         section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(15, 15, 15, 10)  # Reduced bottom padding for equal distance from separator line
+        section_layout.setContentsMargins(15, 10, 15, 10)  # Reduced padding to move section upward
         section_container.setLayout(section_layout)
         
         # Title
@@ -273,14 +274,23 @@ class ProcessingWidget(QWidget):
             "USD Matches"
         ]
         
-        for step in steps:
+        # Grid layout for 2 columns of 3 steps each
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(5)
+        grid_layout.setContentsMargins(0, 0, 0, 0)
+        
+        for i, step in enumerate(steps):
+            row = i % 3
+            col = i // 3
+            
             step_layout = QHBoxLayout()
             step_layout.setSpacing(5)
             
             # Step name
             step_label = QLabel(f"{step}")
             step_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-            
+            # Fixed width for labels to align progress bars in columns
+            step_label.setMinimumWidth(120)
             step_layout.addWidget(step_label)
             
             # Step progress bar
@@ -289,17 +299,20 @@ class ProcessingWidget(QWidget):
             step_progress.setValue(0)
             step_layout.addWidget(step_progress)
             
-            section_layout.addLayout(step_layout)
+            grid_layout.addLayout(step_layout, row, col)
             
             self.step_labels[step] = step_label
             self.step_progresses[step] = step_progress
         
-        # Overall progress section - same line layout as step progress bars
+        section_layout.addLayout(grid_layout)
+        
+        # Overall progress section - in its own row at the bottom
         overall_layout = QHBoxLayout()
         overall_layout.setSpacing(5)
         
         overall_label = QLabel("Overall Progress")
         overall_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        overall_label.setMinimumWidth(120) # Match step label width for alignment
         overall_layout.addWidget(overall_label)
         
         self.overall_progress = QProgressBar()
@@ -369,8 +382,8 @@ class ResultsWidget(QWidget):
         # Create section container with curved box
         section_container = QWidget()
         section_layout = QVBoxLayout()
-        section_layout.setSpacing(5)  # Explicit spacing between elements
-        section_layout.setContentsMargins(15, 5, 15, 5)  # Reduced top and bottom padding to move section upward and match spacing (5px + 5px = 10px)
+        section_layout.setSpacing(10)  # Consistent spacing between elements
+        section_layout.setContentsMargins(15, 10, 15, 10)  # Consistent with other sections
         section_container.setLayout(section_layout)
         
         # Results summary - title and all match types in one row
@@ -502,7 +515,7 @@ class LogWidget(QWidget):
         section_container = QWidget()
         section_container.setContentsMargins(0, 0, 0, 0)  # No container margins
         section_layout = QVBoxLayout()
-        section_layout.setContentsMargins(15, 5, 15, 15)  # Reduced top padding to move upward and match spacing (5px + 5px = 10px, same as above Match Summary)
+        section_layout.setContentsMargins(15, 10, 15, 10)  # Consistent with other sections
         section_container.setLayout(section_layout)
         
         # Title
