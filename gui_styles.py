@@ -94,4 +94,17 @@ def get_main_stylesheet():
             border-color: #E0E0E0;
             font-weight: bold;
         }
+        /* Table Selection Styling */
+        QTableWidget {
+            selection-background-color: #BBDEFB;
+            selection-color: #000000;
+            outline: none;
+        }
+        QTableWidget::item:hover {
+            background-color: #E3F2FD;
+        }
+        QTableWidget::item:selected {
+            background-color: #90CAF9;
+            color: #000000;
+        }
     """

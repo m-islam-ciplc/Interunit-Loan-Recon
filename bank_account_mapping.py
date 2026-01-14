@@ -14,26 +14,29 @@ import os
 # Default interunit account mapping (Full Format → List of Short Codes)
 # Each account can have 1-4 short codes
 DEFAULT_INTERUNIT_ACCOUNT_MAPPING = {
-    'BRAC Bank Ltd.-STD-1540102870121001': ['BBL#1001', 'BBL#21001'],
-    'Brac Bank PLC-CD-A/C-2028701210002': ['BBL#0002', 'BBL#10002'],
-    'Dhaka Bank OD-A/C-2051750000205-CIL': ['DBL#0205', 'DBL#00205'],
-    'Dhaka Bank-STD-2051501833-CIL': ['DBL#1833', 'DBL#01833'],
-    'Dutch Bangla Bank Ltd.-SND-1071200003988': ['DBBL#3988', 'DBBL#03988'],
-    'Eastern Bank Limited-SND-1011060605503': ['EBL#5503', 'EBL#05503'],
-    'Eastern Bank OD#1012040163265': ['EBL#3265', 'EBL#63265'],
-    'Eastern Bank OD#1012210603129': ['EBL#3129', 'EBL#03129'],
-    'Eastern Bank,STD-1011220144056': ['EBL#4056', 'EBL#44056'],
-    'MTBL-SND-A/C-1310000003858': ['MTBL#3858', 'MTBL#03858'],
-    'Midland Bank Ltd-CE-0011-1060000313': ['MDB#0313', 'MDB#00313'],
-    'Midland Bank PLC-CD-A/C-0011-1050011026': ['MDB#11026', 'MDB#1026'],
-    'Midland-CE-0011-1060000304-CI': ['MDB#0304', 'MDB#00304'],
-    'Midland-CE-0011-1060000331-CI': ['MDB#0331', 'MDB#00331'],
-    'One Bank-CD/A/C-0011020008826': ['OBL#8826', 'OBL#08826'],
-    'One Bank-SND-A/C-0013000002451': ['OBL#2451', 'OBL#02451'],
-    'PBL-SND- 2126312011060': ['PBL#11060', 'PBL#1060'],
-    'Prime Bank Limited-SND-2126318011502': ['PBL#11502', 'PBL#1502'],
-    'Prime Bank-CD-2126117010855': ['PBL#10855', 'PBL#0855'],
+    'BRAC Bank Ltd.-STD-1540102870121001': ['BBL#1001', 'BBL# 1001', 'BBL#21001', 'BBL# 21001'],
+    'Brac Bank PLC-CD-A/C-2028701210002': ['BBL#0002', 'BBL# 0002', 'BBL#10002', 'BBL# 10002'],
+    'Dhaka Bank OD-A/C-2051750000205-CIL': ['DBL#0205', 'DBL# 0205', 'DBL#00205', 'DBL# 00205'],
+    'Dhaka Bank-STD-2051501833-CIL': ['DBL#1833', 'DBL# 1833', 'DBL#01833', 'DBL# 01833'],
+    'Dutch Bangla Bank Ltd.-SND-1071200003988': ['DBBL#3988', 'DBBL# 3988', 'DBBL#03988', 'DBBL# 03988'],
+    'Eastern Bank Limited-SND-1011060605503': ['EBL#5503', 'EBL# 5503', 'EBL#05503', 'EBL# 05503'],
+    'Eastern Bank OD#1012040163265': ['EBL#3265', 'EBL# 3265', 'EBL#63265', 'EBL# 63265'],
+    'Eastern Bank OD#1012210603129': ['EBL#3129', 'EBL# 3129', 'EBL#03129', 'EBL# 03129'],
+    'Eastern Bank,STD-1011220144056': ['EBL#4056', 'EBL# 4056', 'EBL#44056', 'EBL# 44056'],
+    'MTBL-SND-A/C-1310000003858': ['MTBL#3858', 'MTBL# 3858', 'MTBL#03858', 'MTBL# 03858'],
+    'Midland Bank Ltd-CE-0011-1060000313': ['MDB#0313', 'MDB# 0313', 'MDB#00313', 'MDB# 00313'],
+    'Midland Bank PLC-CD-A/C-0011-1050011026': ['MDB#11026', 'MDB# 11026', 'MDB#1026', 'MDB# 1026'],
+    'Midland-CE-0011-1060000304-CI': ['MDB#0304', 'MDB# 0304', 'MDB#00304', 'MDB# 00304'],
+    'Midland-CE-0011-1060000331-CI': ['MDB#0331', 'MDB# 0331', 'MDB#00331', 'MDB# 00331'],
+    'One Bank-CD/A/C-0011020008826': ['OBL#8826', 'OBL# 8826', 'OBL#08826', 'OBL# 08826'],
+    'One Bank-SND-A/C-0013000002451': ['OBL#2451', 'OBL# 2451', 'OBL#02451', 'OBL# 02451'],
+    'PBL-SND- 2126312011060': ['PBL#11060', 'PBL# 11060', 'PBL#1060', 'PBL# 1060'],
+    'Prime Bank Limited-SND-2126318011502': ['PBL#11502', 'PBL# 11502', 'PBL#1502', 'PBL# 1502'],
+    'Prime Bank-CD-2126117010855': ['PBL#10855', 'PBL# 10855', 'PBL#0855', 'PBL# 0855'],
 }
+
+
+
 
 
 # File path for saving/loading mappings

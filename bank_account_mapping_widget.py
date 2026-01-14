@@ -77,8 +77,8 @@ class BankAccountMappingWidget(QWidget):
         self.codes_input.setMinimumHeight(35)  # Make input box taller
         add_layout.addWidget(self.codes_input, 2)  # Stretch factor 2
         
-        # Add/Update button
-        self.add_button = QPushButton("Add/Update")
+        # Add Mapping button
+        self.add_button = QPushButton("Add Mapping")
         self.add_button.clicked.connect(self.add_or_update_mapping)
         add_layout.addWidget(self.add_button)
         
@@ -127,8 +127,7 @@ class BankAccountMappingWidget(QWidget):
         self.table.horizontalHeader().setStretchLastSection(False)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
-        self.table.setColumnWidth(2, 150)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)  # Disable automatic editing
         # Using macOS native table styling (no alternating row colors override)
@@ -137,19 +136,6 @@ class BankAccountMappingWidget(QWidget):
         table_section_layout.addWidget(self.table)
         
         section_layout.addWidget(table_section)
-        
-        section_layout.addWidget(table_section)
-        
-        # Save button
-        save_layout = QHBoxLayout()
-        save_layout.addStretch()
-        
-        self.save_button = QPushButton("Save Mappings")
-        self.save_button.clicked.connect(self.save_mappings)
-        save_layout.addWidget(self.save_button)
-        save_layout.addStretch()
-        
-        section_layout.addLayout(save_layout)
         
         # Add section container to main layout
         layout.addWidget(section_container)
@@ -197,13 +183,14 @@ class BankAccountMappingWidget(QWidget):
         # Add or update the mapping
         self.mapping[account_name] = codes
         
+        # Save mappings automatically since the bottom save button was removed
+        self.save_mappings()
+        
         # Reload table
         self.load_mappings_to_table()
         
         # Clear inputs
         self.clear_inputs()
-        
-        QMessageBox.information(self, "Success", f"Mapping added/updated:\n{account_name}\n→ {', '.join(codes)}")
     
     def delete_mapping(self, account_name):
         """Delete a bank account mapping"""
@@ -218,8 +205,9 @@ class BankAccountMappingWidget(QWidget):
         if reply == QMessageBox.StandardButton.Yes:
             if account_name in self.mapping:
                 del self.mapping[account_name]
+                # Save mappings automatically since the bottom save button was removed
+                self.save_mappings()
                 self.load_mappings_to_table()
-                QMessageBox.information(self, "Success", "Mapping deleted successfully.")
     
     def edit_selected_cell(self, row):
         """Make the selected cell in the row editable when Edit button is pressed"""
@@ -261,25 +249,34 @@ class BankAccountMappingWidget(QWidget):
             codes_item.setData(Qt.ItemDataRole.UserRole, account_name)  # Store account name for reference
             self.table.setItem(row, 1, codes_item)
             
-            # Actions - using hyperlink-style text instead of buttons
+            # Actions - using hyperlink-style text
             action_widget = QWidget()
             action_layout = QHBoxLayout()
             action_layout.setContentsMargins(5, 2, 5, 2)
-            action_layout.setSpacing(5)  # Consistent spacing
+            action_layout.setSpacing(8)  # Optimized spacing for compact view
             
             # Edit link
             edit_link = QLabel("Edit")
             edit_link.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            # Make it clickable
+            edit_link.setStyleSheet("color: #1976D2; text-decoration: underline;")
             def edit_clicked(event, row_num=row):
                 self.edit_selected_cell(row_num)
             edit_link.mousePressEvent = edit_clicked
             action_layout.addWidget(edit_link)
             
+            # Save link
+            save_link = QLabel("Save")
+            save_link.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+            save_link.setStyleSheet("color: #388E3C; text-decoration: underline;")
+            def save_clicked(event):
+                self.save_mappings()
+            save_link.mousePressEvent = save_clicked
+            action_layout.addWidget(save_link)
+            
             # Delete link
             delete_link = QLabel("Delete")
             delete_link.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-            # Make it clickable
+            delete_link.setStyleSheet("color: #C62828; text-decoration: underline;")
             def delete_clicked(event, name=account_name):
                 self.delete_mapping(name)
             delete_link.mousePressEvent = delete_clicked
