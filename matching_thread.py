@@ -6,6 +6,7 @@ Background processing logic for GUI application with sleep prevention
 import sys
 import io
 import time
+import re
 from PySide6.QtCore import QThread, Signal
 from interunit_loan_matcher import ExcelTransactionMatcher
 from system_utils import SystemSleepPrevention, ProcessMonitor
@@ -55,7 +56,13 @@ class MatchingThread(QThread):
                 # Split by lines and emit each line as a log message
                 for line in captured_text.strip().split('\n'):
                     if line.strip():
-                        self.log_message.emit(line.strip())
+                        cleaned = line.strip()
+                        # Standardize captured module output so it matches the process log style.
+                        # If the line already starts with a [TAG] prefix, keep it; otherwise wrap it.
+                        if re.match(r"^\[[A-Z_]+\]", cleaned):
+                            self.log_message.emit(cleaned)
+                        else:
+                            self.log_message.emit(f"[DETAIL] {cleaned}")
             self._captured_output.close()
             self._captured_output = None
             self._original_stdout = None
@@ -94,7 +101,7 @@ class MatchingThread(QThread):
             
             # PHASE 1: INITIALIZATION (0-5%)
             self.progress_updated.emit(2, "Initializing matcher...", 0)
-            self.log_message.emit("START: Starting Interunit Loan Matcher...")
+            self.log_message.emit("[START] Starting Interunit Loan Matcher...")
             self.log_message.emit(f"[FILE] File 1: {self.file1_path}")
             self.log_message.emit(f"[FILE] File 2: {self.file2_path}")
             
@@ -122,7 +129,7 @@ class MatchingThread(QThread):
             
             # Capture print output during file processing
             self._capture_print_output()
-            self.log_message.emit("   - Loading Excel files and extracting data...")
+            self.log_message.emit("   [DETAIL] Loading Excel files and extracting data...")
             transactions1, transactions2, blocks1, blocks2, lc_numbers1, lc_numbers2, po_numbers1, po_numbers2, interunit_accounts1, interunit_accounts2, usd_amounts1, usd_amounts2 = matcher.process_files()
             self._release_print_output()
             self.log_message.emit(f"   [OK] File processing completed - {len(transactions1)} and {len(transactions2)} transactions loaded")
@@ -134,8 +141,8 @@ class MatchingThread(QThread):
             # PHASE 2.5: GLOBAL PRE-FILTERING BY AMOUNT (OPTIMIZATION)
             self.progress_updated.emit(20, "Pre-filtering by amount...", 0)
             self.log_message.emit("[OPTIMIZATION] Global Pre-filtering by Amount")
-            self.log_message.emit("   - Filtering transactions with matching amounts...")
-            self.log_message.emit("   - This reduces dataset size for all matching modules...")
+            self.log_message.emit("   [DETAIL] Filtering transactions with matching amounts...")
+            self.log_message.emit("   [DETAIL] This reduces dataset size for all matching modules...")
             self._update_activity()
             
             # Capture print output during pre-filtering
@@ -201,12 +208,12 @@ class MatchingThread(QThread):
             # Note: transactions1 and transactions2 remain unchanged (matching modules use original indices)
             # The filtered data series will naturally skip non-matching transactions
             
-            # PHASE 3: MATCHING LOGIC (25-60%) - 5 steps, 7% each
+            # PHASE 3: MATCHING LOGIC (25-67%) - 6 steps, fixed ordering
             # Step 1: Narration Matching (25-32%)
             self.progress_updated.emit(25, "Finding narration matches...", 0)
-            self.log_message.emit("[SEARCH] Step 1/5: Narration Matching")
-            self.log_message.emit("   - Searching for exact text matches in transaction descriptions...")
-            self.log_message.emit("   - Analyzing transaction descriptions for matches...")
+            self.log_message.emit("[SEARCH] Step 1/6: Narration Matching")
+            self.log_message.emit("   [DETAIL] Searching for exact text matches in transaction descriptions...")
+            self.log_message.emit("   [DETAIL] Analyzing transaction descriptions for matches...")
             self._update_activity()
             
             narration_matches = matcher.narration_matching_logic.find_potential_matches(
@@ -223,8 +230,8 @@ class MatchingThread(QThread):
                 
             # Step 2: LC Matching (32-39%)
             self.progress_updated.emit(32, "Finding LC matches...", 0)
-            self.log_message.emit("[SEARCH] Step 2/5: LC Matching")
-            self.log_message.emit("   - Filtering out already matched records...")
+            self.log_message.emit("[SEARCH] Step 2/6: LC Matching")
+            self.log_message.emit("   [DETAIL] Filtering out already matched records...")
             
             # Create masks for unmatched records (after Narration matching)
             narration_matched_indices1 = set()
@@ -246,8 +253,8 @@ class MatchingThread(QThread):
                 if idx < len(lc_numbers2_unmatched):
                     lc_numbers2_unmatched.iloc[idx] = None
             
-            self.log_message.emit("   - Searching for LC number matches...")
-            self.log_message.emit("   - Analyzing LC numbers for potential matches...")
+            self.log_message.emit("   [DETAIL] Searching for LC number matches...")
+            self.log_message.emit("   [DETAIL] Analyzing LC numbers for potential matches...")
             lc_matches = matcher.lc_matching_logic.find_potential_matches(
                 transactions1, transactions2, lc_numbers1_unmatched, lc_numbers2_unmatched,
                 self.file1_path, self.file2_path, {}, None
@@ -261,8 +268,8 @@ class MatchingThread(QThread):
                 
             # Step 3: PO Matching (39-46%)
             self.progress_updated.emit(39, "Finding PO matches...", 0)
-            self.log_message.emit("[SEARCH] Step 3/5: PO Matching")
-            self.log_message.emit("   - Filtering out already matched records...")
+            self.log_message.emit("[SEARCH] Step 3/6: PO Matching")
+            self.log_message.emit("   [DETAIL] Filtering out already matched records...")
             
             # Create masks for unmatched records (after Narration and LC matching)
             narration_lc_matched_indices1 = set()
@@ -284,8 +291,8 @@ class MatchingThread(QThread):
                 if idx < len(po_numbers2_unmatched):
                     po_numbers2_unmatched.iloc[idx] = None
             
-            self.log_message.emit("   - Searching for PO number matches...")
-            self.log_message.emit("   - Analyzing PO numbers for potential matches...")
+            self.log_message.emit("   [DETAIL] Searching for PO number matches...")
+            self.log_message.emit("   [DETAIL] Analyzing PO numbers for potential matches...")
             po_matches = matcher.po_matching_logic.find_potential_matches(
                 transactions1, transactions2, po_numbers1_unmatched, po_numbers2_unmatched,
                 self.file1_path, self.file2_path, {}, None
@@ -299,8 +306,8 @@ class MatchingThread(QThread):
                 
             # Step 4: Interunit Matching (46-53%)
             self.progress_updated.emit(46, "Finding interunit matches...", 0)
-            self.log_message.emit("[SEARCH] Step 4/5: Interunit Matching")
-            self.log_message.emit("   - Filtering out already matched records...")
+            self.log_message.emit("[SEARCH] Step 4/6: Interunit Matching")
+            self.log_message.emit("   [DETAIL] Filtering out already matched records...")
             
             # Create masks for unmatched records (after Narration, LC, and PO matching)
             narration_lc_po_matched_indices1 = set()
@@ -322,8 +329,8 @@ class MatchingThread(QThread):
                 if idx < len(interunit_accounts2_unmatched):
                     interunit_accounts2_unmatched.iloc[idx] = None
             
-            self.log_message.emit("   - Searching for interunit account matches...")
-            self.log_message.emit("   - Analyzing interunit accounts for potential matches...")
+            self.log_message.emit("   [DETAIL] Searching for interunit account matches...")
+            self.log_message.emit("   [DETAIL] Analyzing interunit accounts for potential matches...")
             interunit_matches = matcher.interunit_loan_matcher.find_potential_matches(
                 transactions1, transactions2, interunit_accounts1_unmatched, interunit_accounts2_unmatched,
                 self.file1_path, self.file2_path, {}, None
@@ -338,7 +345,7 @@ class MatchingThread(QThread):
             # Step 5: Settlement Matching (53-60%)
             self.progress_updated.emit(53, "Finding settlement matches...", 0)
             self.log_message.emit("[SEARCH] Step 5/6: Settlement Matching")
-            self.log_message.emit("   - Filtering out already matched records...")
+            self.log_message.emit("   [DETAIL] Filtering out already matched records...")
             
             # Create masks for unmatched records (after Narration, LC, PO, and Interunit matching)
             narration_lc_po_interunit_matched_indices1 = set()
@@ -352,8 +359,8 @@ class MatchingThread(QThread):
             blocks1_unmatched = [b for b in blocks1 if b[0] not in narration_lc_po_interunit_matched_indices1]
             blocks2_unmatched = [b for b in blocks2 if b[0] not in narration_lc_po_interunit_matched_indices2]
             
-            self.log_message.emit("   - Searching for settlement matches (Employee IDs)...")
-            self.log_message.emit("   - Analyzing transaction narrations for Employee IDs...")
+            self.log_message.emit("   [DETAIL] Searching for settlement matches (Employee IDs)...")
+            self.log_message.emit("   [DETAIL] Analyzing transaction narrations for Employee IDs...")
             settlement_matches = matcher.settlement_matching_logic.find_potential_matches(
                 transactions1, transactions2, blocks1_unmatched, blocks2_unmatched,
                 self.file1_path, self.file2_path
@@ -368,7 +375,7 @@ class MatchingThread(QThread):
             # Step 6: USD Matching (60-67%)
             self.progress_updated.emit(60, "Finding USD matches...", 0)
             self.log_message.emit("[SEARCH] Step 6/6: USD Matching")
-            self.log_message.emit("   - Filtering out already matched records...")
+            self.log_message.emit("   [DETAIL] Filtering out already matched records...")
             
             # Create masks for unmatched records (after Narration, LC, PO, Interunit, and Settlement matching)
             all_matched_indices1 = set()
@@ -390,8 +397,8 @@ class MatchingThread(QThread):
                 if idx < len(usd_amounts2_unmatched):
                     usd_amounts2_unmatched.iloc[idx] = None
             
-            self.log_message.emit("   - Searching for USD amount matches...")
-            self.log_message.emit("   - Analyzing USD amounts for potential matches...")
+            self.log_message.emit("   [DETAIL] Searching for USD amount matches...")
+            self.log_message.emit("   [DETAIL] Analyzing USD amounts for potential matches...")
             usd_matches = matcher.usd_matching_logic.find_potential_matches(
                 transactions1, transactions2, usd_amounts1_unmatched, usd_amounts2_unmatched,
                 self.file1_path, self.file2_path, {}, None
@@ -408,13 +415,13 @@ class MatchingThread(QThread):
             self.log_message.emit("[STATS] Processing all matches...")
             
             # Combine all matches
-            self.log_message.emit("   - Combining matches from all matching types...")
+            self.log_message.emit("   [DETAIL] Combining matches from all matching types...")
             all_matches = narration_matches + lc_matches + po_matches + interunit_matches + settlement_matches + usd_matches
             self.log_message.emit(f"   - Combined {len(all_matches)} total matches")
             
             # Assign sequential Match IDs
-            self.log_message.emit("   - Assigning sequential Match IDs...")
-            self.log_message.emit("   - Organizing matches for output...")
+            self.log_message.emit("   [DETAIL] Assigning sequential Match IDs...")
+            self.log_message.emit("   [DETAIL] Organizing matches for output...")
             match_counter = 1
             for match in all_matches:
                 match_id = f"M{match_counter:03d}"
@@ -422,9 +429,9 @@ class MatchingThread(QThread):
                 match_counter += 1
             
             # Sort matches by the newly assigned sequential Match IDs
-            self.log_message.emit("   - Sorting matches by Match ID...")
+            self.log_message.emit("   [DETAIL] Sorting matches by Match ID...")
             all_matches.sort(key=lambda x: x['match_id'])
-            self.log_message.emit("   - Match processing completed successfully!")
+            self.log_message.emit("   [OK] Match processing completed successfully!")
             
             # Create statistics
             stats = {

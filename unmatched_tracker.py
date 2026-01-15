@@ -18,8 +18,10 @@ class UnmatchedTracker:
     
     def __init__(self):
         """Initialize the unmatched tracker."""
-        # Dictionary: {file_index: [list of reasons]}
-        self.unmatched_reasons: Dict[int, List[str]] = defaultdict(list)
+        # Dictionary: {"file{N}_index_{idx}": [list of reasons]}
+        # Note: we intentionally keep a list (not a set) so we can preserve repeated attempts;
+        # the formatted audit info will de-duplicate / compress repeats for readability.
+        self.unmatched_reasons: Dict[str, List[str]] = defaultdict(list)
         
         # Track which records were matched (to identify unmatched ones)
         self.matched_indices_file1: Set[int] = set()
@@ -86,10 +88,20 @@ class UnmatchedTracker:
         if not reasons:
             return "No match found - No matching criteria met"
         
-        # Format reasons into readable audit info
+        # Format reasons into readable audit info.
+        # Some matching modules may attempt multiple candidate matches for the same record
+        # (e.g., same amount appears in multiple blocks). That can produce repeated reasons.
+        # For audit readability, we de-duplicate identical reasons (preserving first-seen order).
+        seen: Set[str] = set()
+        unique_reasons: List[str] = []
+        for r in reasons:
+            if r not in seen:
+                seen.add(r)
+                unique_reasons.append(r)
+
         audit_info = "Unmatched Record\n"
         audit_info += "Reasons:\n"
-        for i, reason in enumerate(reasons, 1):
+        for i, reason in enumerate(unique_reasons, 1):
             audit_info += f"{i}. {reason}\n"
         
         return audit_info.strip()

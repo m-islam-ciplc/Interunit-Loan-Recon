@@ -150,12 +150,12 @@ class MainWindow(QMainWindow):
         # No custom styling - using macOS native style
         
         # Add initial log message
-        self.log_widget.add_log("Application started. Please select Excel files to begin.")
-        self.log_widget.add_log("<b><font color='red'>💡 TIP: For long processing sessions, consider disabling PC sleep mode to prevent interruptions during matching.</font></b>")
+        self.log_widget.add_log("[INFO] Application started. Please select Excel files to begin.")
+        self.log_widget.add_log("[TIP] For long processing sessions, consider disabling PC sleep mode to prevent interruptions during matching.")
     
     def on_mapping_changed(self):
         """Handle bank account mapping changes"""
-        self.log_widget.add_log("📝 Bank account mappings updated. Changes will be applied to future matching operations.")
+        self.log_widget.add_log("[MAPPING] Bank account mappings updated. Changes will be applied to future matching operations.")
     
     def _preload_test_files(self):
         """Preload test files for development/testing"""
@@ -177,9 +177,9 @@ class MainWindow(QMainWindow):
                 self.file1_path = str(file1_path)
                 self.file2_path = str(file2_path)
                 
-                self.log_widget.add_log(f"✅ Preloaded test files:")
-                self.log_widget.add_log(f"   File 1: {file1_path.name}")
-                self.log_widget.add_log(f"   File 2: {file2_path.name}")
+                self.log_widget.add_log("[FILE] Preloaded test files:")
+                self.log_widget.add_log(f"   [FILE] File 1: {file1_path.name}")
+                self.log_widget.add_log(f"   [FILE] File 2: {file2_path.name}")
             else:
                 # Log which files are missing
                 missing_files = []
@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
                     missing_files.append(f"File 1: {file1_path.name}")
                 if not file2_path.exists():
                     missing_files.append(f"File 2: {file2_path.name}")
-                self.log_widget.add_log(f"⚠️ Test files not found. Missing: {', '.join(missing_files)}")
+                self.log_widget.add_log(f"[WARNING] Test files not found. Missing: {', '.join(missing_files)}")
         except Exception as e:
             # Silently fail if preload doesn't work - don't interrupt normal operation
             pass
@@ -204,7 +204,7 @@ class MainWindow(QMainWindow):
         # Also set the attributes that open_output_folder expects
         self.file1_path = file1_path
         self.file2_path = file2_path
-        self.log_widget.add_log(f"Files selected: {os.path.basename(file1_path)} and {os.path.basename(file2_path)}")
+        self.log_widget.add_log(f"[FILE] Files selected: {os.path.basename(file1_path)} and {os.path.basename(file2_path)}")
     
     def start_matching(self):
         """Start the matching process"""
@@ -216,11 +216,11 @@ class MainWindow(QMainWindow):
         self.start_time = datetime.now()
         start_time_str = self.start_time.strftime("%Y-%m-%d %H:%M:%S")
         
-        self.log_widget.add_log("="*60)
-        self.log_widget.add_log(f"🚀 MATCHING PROCESS STARTED")
-        self.log_widget.add_log(f"⏰ Start Time: {start_time_str}")
-        self.log_widget.add_log("="*60)
-        self.log_widget.add_log("Starting matching process...")
+        self.log_widget.add_log("[INFO] " + ("=" * 60))
+        self.log_widget.add_log("[START] MATCHING PROCESS STARTED")
+        self.log_widget.add_log(f"[TIME] Start Time: {start_time_str}")
+        self.log_widget.add_log("[INFO] " + ("=" * 60))
+        self.log_widget.add_log("[INFO] Starting matching process...")
         
         # Reset state for new matching process
         self.files_saved = False
@@ -241,7 +241,7 @@ class MainWindow(QMainWindow):
     def update_overall_progress(self, step: int, status: str, matches_found: int):
         """Update overall progress bar"""
         self.overall_progress.setValue(step)
-        self.log_widget.add_log(f"{status} ({matches_found} matches found)")
+        self.log_widget.add_log(f"[PROGRESS] {status} (matches_found={matches_found})")
     
     def on_matching_finished(self, matches: list, statistics: dict):
         """Handle matching completion"""
@@ -250,7 +250,7 @@ class MainWindow(QMainWindow):
         self.current_statistics = statistics  # Store statistics for real-time updates
         self.results_widget.update_results(statistics, enable_buttons=False)  # Don't enable buttons yet
         
-        self.log_widget.add_log(f"Matching completed successfully! Found {statistics['total_matches']} matches.")
+        self.log_widget.add_log(f"[DONE] Matching completed successfully. total_matches={statistics['total_matches']}")
         
         # Check for potential manual matches (before generating output files)
         if matches and len(matches) > 0:
@@ -258,7 +258,7 @@ class MainWindow(QMainWindow):
             if (self.matching_thread and 
                 hasattr(self.matching_thread, 'transactions1_data') and 
                 self.matching_thread.transactions1_data is not None):
-                self.log_widget.add_log("🔍 Checking for potential manual matches...")
+                self.log_widget.add_log("[MANUAL] Checking for potential manual matches...")
                 self._check_manual_matches(matches)
             else:
                 # Fallback: generate output files directly
@@ -282,12 +282,12 @@ class MainWindow(QMainWindow):
             else:
                 duration_str = "Unknown"
             
-            self.log_widget.add_log("="*60)
-            self.log_widget.add_log(f"🎉 MATCHING PROCESS COMPLETED")
-            self.log_widget.add_log(f"⏰ Finish Time: {finish_time_str}")
-            self.log_widget.add_log(f"⏱️  Total Duration: {duration_str}")
-            self.log_widget.add_log("="*60)
-            self.log_widget.add_log("No matches found. No output files created.")
+            self.log_widget.add_log("[INFO] " + ("=" * 60))
+            self.log_widget.add_log("[DONE] MATCHING PROCESS COMPLETED")
+            self.log_widget.add_log(f"[TIME] Finish Time: {finish_time_str}")
+            self.log_widget.add_log(f"[TIME] Total Duration: {duration_str}")
+            self.log_widget.add_log("[INFO] " + ("=" * 60))
+            self.log_widget.add_log("[RESULTS] No matches found. No output files created.")
             self.processing_widget.set_processing_state(False)
     
     def _check_manual_matches(self, automatic_matches: list):
@@ -313,8 +313,8 @@ class MainWindow(QMainWindow):
             )
             
             if potential_matches and len(potential_matches) > 0:
-                self.log_widget.add_log(f"📋 Found {len(potential_matches)} potential manual match pairs")
-                self.log_widget.add_log("   Switching to manual matching review...")
+                self.log_widget.add_log(f"[MANUAL] Found {len(potential_matches)} potential manual match pairs")
+                self.log_widget.add_log("   [MANUAL] Switching to manual matching review...")
                 
                 # Update progress bar to show manual matching phase
                 self.overall_progress.setValue(76)
@@ -326,11 +326,11 @@ class MainWindow(QMainWindow):
                 self.bottom_stack.setCurrentIndex(1)  # Show Manual Matching Widget
             else:
                 # No potential manual matches, generate output files with automatic matches
-                self.log_widget.add_log("   No potential manual matches found.")
+                self.log_widget.add_log("   [MANUAL] No potential manual matches found.")
                 self.create_output_files_with_progress(automatic_matches)
                 
         except Exception as e:
-            self.log_widget.add_log(f"❌ Error during manual matching check: {str(e)}")
+            self.log_widget.add_log(f"[ERROR] Error during manual matching check: {str(e)}")
             # Fallback: generate output files with automatic matches
             self.create_output_files_with_progress(automatic_matches)
 
@@ -354,7 +354,7 @@ class MainWindow(QMainWindow):
 
     def on_manual_matches_finished(self, confirmed_manual_matches):
         """Handle completion of manual matching review"""
-        self.log_widget.add_log(f"✅ Manual matching completed: {len(confirmed_manual_matches)} matches confirmed")
+        self.log_widget.add_log(f"[MANUAL] Manual matching completed: {len(confirmed_manual_matches)} matches confirmed")
         
         # Combine automatic and manual matches
         all_matches = self.temp_automatic_matches + confirmed_manual_matches
@@ -404,7 +404,7 @@ class MainWindow(QMainWindow):
 
     def on_manual_matches_skipped(self):
         """Handle user skipping manual matching"""
-        self.log_widget.add_log("⏭️ Manual matching skipped. Generating output files with automatic matches only.")
+        self.log_widget.add_log("[MANUAL] Manual matching skipped. Generating output files with automatic matches only.")
         # Update progress bar
         self.overall_progress.setValue(80)
         self.bottom_stack.setCurrentIndex(0)  # Switch back to log view
@@ -412,7 +412,7 @@ class MainWindow(QMainWindow):
 
     def on_manual_matches_cancelled(self):
         """Handle user cancelling manual matching"""
-        self.log_widget.add_log("⚠️ Manual matching cancelled. Generating output files with automatic matches only.")
+        self.log_widget.add_log("[MANUAL] Manual matching cancelled. Generating output files with automatic matches only.")
         # Update progress bar
         self.overall_progress.setValue(80)
         self.bottom_stack.setCurrentIndex(0)  # Switch back to log view
@@ -426,37 +426,37 @@ class MainWindow(QMainWindow):
             
             # PHASE 1: PREPARATION (80-85%)
             self.overall_progress.setValue(80)
-            self.log_widget.add_log("📁 Preparing file creation...")
-            self.log_widget.add_log(f"   - Processing {len(matches)} matches for output files")
+            self.log_widget.add_log("[OUTPUT] Preparing file creation...")
+            self.log_widget.add_log(f"   [OUTPUT] Processing {len(matches)} matches for output files")
             
             from interunit_loan_matcher import ExcelTransactionMatcher
             matcher = ExcelTransactionMatcher(self.current_file1, self.current_file2)
             
             # PHASE 2: LOAD TRANSACTION DATA (85-90%) - This takes significant time
             self.overall_progress.setValue(85)
-            self.log_widget.add_log("📖 Loading first transaction file...")
-            self.log_widget.add_log(f"   - Reading: {self.current_file1}")
-            self.log_widget.add_log("   - Processing Excel file structure...")
+            self.log_widget.add_log("[OUTPUT] Loading first transaction file...")
+            self.log_widget.add_log(f"   [FILE] Reading: {self.current_file1}")
+            self.log_widget.add_log("   [OUTPUT] Processing Excel file structure...")
             matcher.metadata1, matcher.transactions1 = matcher.read_complex_excel(self.current_file1)
-            self.log_widget.add_log(f"   ✅ Loaded {len(matcher.transactions1)} transactions from File 1")
+            self.log_widget.add_log(f"   [OK] Loaded {len(matcher.transactions1)} transactions from File 1")
             
             self.overall_progress.setValue(88)
-            self.log_widget.add_log("📖 Loading second transaction file...")
-            self.log_widget.add_log(f"   - Reading: {self.current_file2}")
-            self.log_widget.add_log("   - Processing Excel file structure...")
+            self.log_widget.add_log("[OUTPUT] Loading second transaction file...")
+            self.log_widget.add_log(f"   [FILE] Reading: {self.current_file2}")
+            self.log_widget.add_log("   [OUTPUT] Processing Excel file structure...")
             matcher.metadata2, matcher.transactions2 = matcher.read_complex_excel(self.current_file2)
-            self.log_widget.add_log(f"   ✅ Loaded {len(matcher.transactions2)} transactions from File 2")
+            self.log_widget.add_log(f"   [OK] Loaded {len(matcher.transactions2)} transactions from File 2")
             
             # PHASE 3: CREATE MATCHED FILES (90-100%) - This is the longest part
             self.overall_progress.setValue(90)
-            self.log_widget.add_log("📝 Creating matched Excel files...")
-            self.log_widget.add_log("   - Generating output files with matched transactions...")
-            self.log_widget.add_log("   - This may take 30+ seconds for large files...")
-            self.log_widget.add_log("   - Creating Excel workbooks and formatting...")
+            self.log_widget.add_log("[OUTPUT] Creating matched Excel files...")
+            self.log_widget.add_log("   [OUTPUT] Generating output files with matched transactions...")
+            self.log_widget.add_log("   [OUTPUT] This may take 30+ seconds for large files...")
+            self.log_widget.add_log("   [OUTPUT] Creating Excel workbooks and formatting...")
             
             # This is where most of the time is spent - creating and formatting Excel files
             matcher.create_matched_files(matches, matcher.transactions1, matcher.transactions2)
-            self.log_widget.add_log("   - Excel file generation completed!")
+            self.log_widget.add_log("   [OK] Excel file generation completed!")
             
             # PHASE 4: COMPLETE (100%)
             self.overall_progress.setValue(100)
@@ -479,13 +479,13 @@ class MainWindow(QMainWindow):
             else:
                 duration_str = "Unknown"
             
-            self.log_widget.add_log("="*60)
-            self.log_widget.add_log(f"🎉 MATCHING PROCESS COMPLETED")
-            self.log_widget.add_log(f"⏰ Finish Time: {finish_time_str}")
-            self.log_widget.add_log(f"⏱️  Total Duration: {duration_str}")
-            self.log_widget.add_log("="*60)
-            self.log_widget.add_log("Excel files exported successfully!")
-            self.log_widget.add_log("   - Matched files saved to the same folder as input files")
+            self.log_widget.add_log("[INFO] " + ("=" * 60))
+            self.log_widget.add_log("[DONE] MATCHING PROCESS COMPLETED")
+            self.log_widget.add_log(f"[TIME] Finish Time: {finish_time_str}")
+            self.log_widget.add_log(f"[TIME] Total Duration: {duration_str}")
+            self.log_widget.add_log("[INFO] " + ("=" * 60))
+            self.log_widget.add_log("[OUTPUT] Excel files exported successfully!")
+            self.log_widget.add_log("   [OUTPUT] Matched files saved to the same folder as input files")
             
             # Mark files as saved and enable output buttons
             self.files_saved = True
@@ -512,12 +512,12 @@ class MainWindow(QMainWindow):
             else:
                 duration_str = "Unknown"
             
-            self.log_widget.add_log("="*60)
-            self.log_widget.add_log(f"❌ MATCHING PROCESS FAILED")
-            self.log_widget.add_log(f"⏰ Finish Time: {finish_time_str}")
-            self.log_widget.add_log(f"⏱️  Total Duration: {duration_str}")
-            self.log_widget.add_log("="*60)
-            self.log_widget.add_log(f"Export error: {str(e)}")
+            self.log_widget.add_log("[INFO] " + ("=" * 60))
+            self.log_widget.add_log("[ERROR] MATCHING PROCESS FAILED")
+            self.log_widget.add_log(f"[TIME] Finish Time: {finish_time_str}")
+            self.log_widget.add_log(f"[TIME] Total Duration: {duration_str}")
+            self.log_widget.add_log("[INFO] " + ("=" * 60))
+            self.log_widget.add_log(f"[ERROR] Export error: {str(e)}")
             QMessageBox.critical(self, "Export Error", f"Failed to export files:\n\n{str(e)}")
         finally:
             # Always reset processing state when done
@@ -543,12 +543,12 @@ class MainWindow(QMainWindow):
         else:
             duration_str = "Unknown"
         
-        self.log_widget.add_log("="*60)
-        self.log_widget.add_log(f"❌ MATCHING PROCESS FAILED")
-        self.log_widget.add_log(f"⏰ Finish Time: {finish_time_str}")
-        self.log_widget.add_log(f"⏱️  Total Duration: {duration_str}")
-        self.log_widget.add_log("="*60)
-        self.log_widget.add_log(f"Error: {error_message}")
+        self.log_widget.add_log("[INFO] " + ("=" * 60))
+        self.log_widget.add_log("[ERROR] MATCHING PROCESS FAILED")
+        self.log_widget.add_log(f"[TIME] Finish Time: {finish_time_str}")
+        self.log_widget.add_log(f"[TIME] Total Duration: {duration_str}")
+        self.log_widget.add_log("[INFO] " + ("=" * 60))
+        self.log_widget.add_log(f"[ERROR] Error: {error_message}")
         
         self.processing_widget.set_processing_state(False)
         QMessageBox.critical(self, "Matching Error", f"An error occurred during matching:\n\n{error_message}")

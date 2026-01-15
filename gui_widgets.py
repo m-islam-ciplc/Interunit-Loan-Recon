@@ -10,7 +10,7 @@ from typing import Dict, Any
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QProgressBar, 
-    QTextEdit, QFileDialog, QMessageBox, QApplication, QSpacerItem, QSizePolicy
+    QPlainTextEdit, QFileDialog, QMessageBox, QApplication, QSpacerItem, QSizePolicy
 )
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QDragEnterEvent, QDropEvent
@@ -613,7 +613,8 @@ class LogWidget(QWidget):
         section_layout.addWidget(title)
         
         # Log text area - expand to fill available space
-        self.log_text = QTextEdit()
+        # Use plain text to ensure consistent formatting (no HTML/emoji rendering differences)
+        self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
         section_layout.addWidget(self.log_text, 1)  # Stretch factor to fill available space
         
@@ -627,7 +628,7 @@ class LogWidget(QWidget):
         """Add a message to the log with real-time timestamp"""
         # Get timestamp when the message is actually displayed
         timestamp = time.strftime("%H:%M:%S")
-        self.log_text.append(f"[{timestamp}] {message}")
+        self.log_text.appendPlainText(f"[{timestamp}] {message}")
         # Auto-scroll to bottom
         self.log_text.verticalScrollBar().setValue(
             self.log_text.verticalScrollBar().maximum()
