@@ -99,6 +99,7 @@ class ManualMatchingWidget(QWidget):
         # Title row with Skip button - horizontal layout
         title_row_layout = QHBoxLayout()
         title_row_layout.setContentsMargins(0, 0, 0, 0)
+        title_row_layout.setSpacing(8)
         
         # Progress indicator (title) - left aligned
         progress_label = QLabel()
@@ -106,9 +107,14 @@ class ManualMatchingWidget(QWidget):
         progress_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Left align like other titles
         self.progress_label = progress_label
         title_row_layout.addWidget(progress_label)
-        
-        # Add stretch to push skip button to the right
-        title_row_layout.addStretch()
+
+        # Match info (amount and types) - in same row as heading to free vertical space for tables
+        info_label = QLabel()
+        info_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        info_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        info_label.setWordWrap(False)
+        self.info_label = info_label
+        title_row_layout.addWidget(info_label, 1)
         
         # Skip button - right aligned in title row
         skip_button = QPushButton("Skip Manual Matching")
@@ -117,12 +123,6 @@ class ManualMatchingWidget(QWidget):
         title_row_layout.addWidget(skip_button)
         
         main_layout.addLayout(title_row_layout)
-
-        # Match info (amount and types) - reduced spacing
-        info_label = QLabel()
-        info_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)  # Left align like other titles
-        self.info_label = info_label
-        main_layout.addWidget(info_label)
         
         # Splitter for side-by-side display - this will expand to fill available space
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -183,9 +183,6 @@ class ManualMatchingWidget(QWidget):
         splitter.setSizes([600, 600])
         splitter.setChildrenCollapsible(False)
         main_layout.addWidget(splitter, 1)  # Give splitter stretch factor 1 to expand
-
-        # Add stretch to push buttons to the bottom
-        main_layout.addStretch()
 
         # Button layout - aligned at bottom
         button_layout = QHBoxLayout()

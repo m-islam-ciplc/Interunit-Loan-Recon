@@ -9,7 +9,7 @@ from openpyxl import load_workbook
 from matching_logic import (
     LCMatchingLogic, POMatchingLogic, USDMatchingLogic, 
     InterunitLoanMatcher, AggregatedPOMatchingLogic, NarrationMatchingLogic,
-    FinalSettlementMatchingLogic
+    FinalSettlementMatchingLogic, SalaryMatchingLogic
 )
 from transaction_block_identifier import TransactionBlockIdentifier
 
@@ -45,6 +45,7 @@ class   ExcelTransactionMatcher:
         self.aggregated_po_matching_logic = AggregatedPOMatchingLogic(self.block_identifier)
         self.narration_matching_logic = NarrationMatchingLogic(self.block_identifier)
         self.settlement_matching_logic = FinalSettlementMatchingLogic(self.block_identifier)
+        self.salary_matching_logic = SalaryMatchingLogic(self.block_identifier)
         
         # Performance optimization caches
         self._block_header_cache1 = {}

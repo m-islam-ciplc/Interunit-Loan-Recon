@@ -78,6 +78,11 @@ def get_main_stylesheet():
             color: #7B1FA2;
             border-color: #E1BEE7;
         }
+        QLabel[class*="salary-pill"] {
+            background-color: #E8EAF6;
+            color: #283593;
+            border-color: #C5CAE9;
+        }
         QLabel[class*="usd-pill"] {
             background-color: #E0F7FA;
             color: #00838F;

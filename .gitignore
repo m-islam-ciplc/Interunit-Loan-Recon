@@ -1,4 +1,4 @@
 .venv/
 /checkpoints
-/matching_logic/__pycache__
 /__pycache__
+/matching_logic/__pycache__

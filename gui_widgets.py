@@ -20,6 +20,7 @@ class FileSelectionWidget(QWidget):
     """Widget for file selection with drag and drop support"""
     
     files_selected = Signal(str, str)  # file1_path, file2_path
+    files_cleared = Signal()  # emitted when Clear Ledgers is pressed
     
     def __init__(self):
         super().__init__()
@@ -149,6 +150,7 @@ class FileSelectionWidget(QWidget):
         self.file1_path = ""
         self.file2_path = ""
         self.update_file_display()
+        self.files_cleared.emit()
             
     def set_file(self, file_num: int, file_path: str):
         """Set the selected file path"""
@@ -287,18 +289,20 @@ class ProcessingWidget(QWidget):
             "LC Matches",
             "One to One PO Matches",
             "Interunit Matches",
+            "Salary Matches",
             "Final Settlement Matches",
             "USD Matches"
         ]
         
-        # Grid layout for 2 columns of 3 steps each
+        # Grid layout for 2 columns (dynamic rows)
         grid_layout = QGridLayout()
         grid_layout.setSpacing(5)
         grid_layout.setContentsMargins(0, 0, 0, 0)
         
+        rows_per_col = (len(steps) + 1) // 2  # e.g. 7 steps -> 4 rows per column
         for i, step in enumerate(steps):
-            row = i % 3
-            col = i // 3
+            row = i % rows_per_col
+            col = i // rows_per_col
             
             step_layout = QHBoxLayout()
             step_layout.setSpacing(5)
@@ -357,6 +361,7 @@ class ProcessingWidget(QWidget):
             "LC Matching": "LC Matches",
             "PO Matching": "One to One PO Matches",
             "Interunit Matching": "Interunit Matches",
+            "Salary Matching": "Salary Matches",
             "Settlement Matching": "Final Settlement Matches",
             "USD Matching": "USD Matches"
         }
@@ -416,36 +421,49 @@ class ResultsWidget(QWidget):
         # Narration Matches
         self.narration_matches_label = QLabel("Narration: 0")
         self.narration_matches_label.setProperty("class", "match-pill narration-pill")
+        self.narration_matches_label.setVisible(False)
         single_row_layout.addWidget(self.narration_matches_label)
         
         # LC Matches
         self.lc_matches_label = QLabel("LC: 0")
         self.lc_matches_label.setProperty("class", "match-pill lc-pill")
+        self.lc_matches_label.setVisible(False)
         single_row_layout.addWidget(self.lc_matches_label)
         
         # PO Matches
         self.po_matches_label = QLabel("PO: 0")
         self.po_matches_label.setProperty("class", "match-pill po-pill")
+        self.po_matches_label.setVisible(False)
         single_row_layout.addWidget(self.po_matches_label)
         
         # Interunit Matches
         self.interunit_matches_label = QLabel("Interunit: 0")
         self.interunit_matches_label.setProperty("class", "match-pill interunit-pill")
+        self.interunit_matches_label.setVisible(False)
         single_row_layout.addWidget(self.interunit_matches_label)
+        
+        # Salary Matches
+        self.salary_matches_label = QLabel("Salary: 0")
+        self.salary_matches_label.setProperty("class", "match-pill salary-pill")
+        self.salary_matches_label.setVisible(False)
+        single_row_layout.addWidget(self.salary_matches_label)
         
         # Settlement Matches
         self.settlement_matches_label = QLabel("Settlement: 0")
         self.settlement_matches_label.setProperty("class", "match-pill settlement-pill")
+        self.settlement_matches_label.setVisible(False)
         single_row_layout.addWidget(self.settlement_matches_label)
         
         # USD Matches
         self.usd_matches_label = QLabel("USD: 0")
         self.usd_matches_label.setProperty("class", "match-pill usd-pill")
+        self.usd_matches_label.setVisible(False)
         single_row_layout.addWidget(self.usd_matches_label)
         
         # Manual Matches
         self.manual_matches_label = QLabel("Manual: 0")
         self.manual_matches_label.setProperty("class", "match-pill manual-pill")
+        self.manual_matches_label.setVisible(False)
         single_row_layout.addWidget(self.manual_matches_label)
         
         # Total Matches
@@ -453,6 +471,7 @@ class ResultsWidget(QWidget):
         
         self.total_matches_label = QLabel("Total Matches: 0")
         self.total_matches_label.setProperty("class", "match-pill total-pill")
+        self.total_matches_label.setVisible(False)
         single_row_layout.addWidget(self.total_matches_label)
         
         section_layout.addLayout(single_row_layout)
@@ -486,6 +505,7 @@ class ResultsWidget(QWidget):
         lc_count = statistics.get('lc_matches', 0)
         po_count = statistics.get('po_matches', 0)
         interunit_count = statistics.get('interunit_matches', 0)
+        salary_count = statistics.get('salary_matches', 0)
         settlement_count = statistics.get('settlement_matches', 0)
         usd_count = statistics.get('usd_matches', 0)
         manual_count = statistics.get('manual_matches', 0)
@@ -503,6 +523,9 @@ class ResultsWidget(QWidget):
         self.interunit_matches_label.setText(f"Interunit: {interunit_count}")
         self.interunit_matches_label.setVisible(interunit_count > 0)
         
+        self.salary_matches_label.setText(f"Salary: {salary_count}")
+        self.salary_matches_label.setVisible(salary_count > 0)
+        
         self.settlement_matches_label.setText(f"Settlement: {settlement_count}")
         self.settlement_matches_label.setVisible(settlement_count > 0)
         
@@ -513,8 +536,9 @@ class ResultsWidget(QWidget):
         self.manual_matches_label.setVisible(manual_count > 0)
         
         # Calculate total matches
-        total = narration_count + lc_count + po_count + interunit_count + settlement_count + usd_count + manual_count
+        total = narration_count + lc_count + po_count + interunit_count + salary_count + settlement_count + usd_count + manual_count
         self.total_matches_label.setText(f"Total Matches: {total}")
+        self.total_matches_label.setVisible(True)
         
         # Enable the Open buttons only if explicitly requested and there are matches
         if enable_buttons and total > 0:
@@ -551,6 +575,10 @@ class ResultsWidget(QWidget):
             except (ValueError, IndexError):
                 interunit = 0
             try:
+                salary = int(self.salary_matches_label.text().split(":")[1].strip())
+            except (ValueError, IndexError):
+                salary = 0
+            try:
                 settlement = int(self.settlement_matches_label.text().split(":")[1].strip())
             except (ValueError, IndexError):
                 settlement = 0
@@ -558,7 +586,7 @@ class ResultsWidget(QWidget):
                 usd = int(self.usd_matches_label.text().split(":")[1].strip())
             except (ValueError, IndexError):
                 usd = 0
-            total = narration + lc + po + interunit + settlement + usd + count
+            total = narration + lc + po + interunit + salary + settlement + usd + count
             self.total_matches_label.setText(f"Total Matches: {total}")
     
     def reset_results(self):
@@ -571,6 +599,8 @@ class ResultsWidget(QWidget):
         self.po_matches_label.setVisible(False)
         self.interunit_matches_label.setText("Interunit: 0")
         self.interunit_matches_label.setVisible(False)
+        self.salary_matches_label.setText("Salary: 0")
+        self.salary_matches_label.setVisible(False)
         self.settlement_matches_label.setText("Settlement: 0")
         self.settlement_matches_label.setVisible(False)
         self.usd_matches_label.setText("USD: 0")
@@ -578,6 +608,7 @@ class ResultsWidget(QWidget):
         self.manual_matches_label.setText("Manual: 0")
         self.manual_matches_label.setVisible(False)
         self.total_matches_label.setText("Total Matches: 0")
+        self.total_matches_label.setVisible(False)
         self.open_folder_button.setEnabled(False)
         self.open_files_button.setEnabled(False)
     

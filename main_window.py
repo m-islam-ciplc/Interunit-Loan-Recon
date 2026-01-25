@@ -71,6 +71,7 @@ class MainWindow(QMainWindow):
         # File selection widget (left) - equal width
         self.file_selection = FileSelectionWidget()
         self.file_selection.files_selected.connect(self.on_files_selected)
+        self.file_selection.files_cleared.connect(self.on_files_cleared)
         self.file_selection.run_match_button.clicked.connect(self.start_matching)
         top_row.addWidget(self.file_selection, 1, Qt.AlignmentFlag.AlignTop)  # Align at top
         
@@ -205,6 +206,22 @@ class MainWindow(QMainWindow):
         self.file1_path = file1_path
         self.file2_path = file2_path
         self.log_widget.add_log(f"[FILE] Files selected: {os.path.basename(file1_path)} and {os.path.basename(file2_path)}")
+
+    def on_files_cleared(self):
+        """Handle user clearing selected ledgers (hide summary pills and reset UI state)."""
+        self.current_file1 = ""
+        self.current_file2 = ""
+        self.file1_path = ""
+        self.file2_path = ""
+        self.current_matches = []
+        self.current_statistics = None
+        self.files_saved = False
+
+        # Reset UI
+        self.processing_widget.reset_progress()
+        self.overall_progress.setValue(0)
+        self.results_widget.reset_results()  # hides summary pills
+        self.log_widget.add_log("[FILE] Ledgers cleared.")
     
     def start_matching(self):
         """Start the matching process"""
@@ -344,6 +361,7 @@ class MainWindow(QMainWindow):
                 self.current_statistics.get('lc_matches', 0) +
                 self.current_statistics.get('po_matches', 0) +
                 self.current_statistics.get('interunit_matches', 0) +
+                self.current_statistics.get('salary_matches', 0) +
                 self.current_statistics.get('settlement_matches', 0) +
                 self.current_statistics.get('usd_matches', 0)
             )
@@ -377,6 +395,7 @@ class MainWindow(QMainWindow):
         interunit_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Interunit')
         settlement_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Settlement')
         usd_count = sum(1 for m in all_matches if m.get('Match_Type') == 'USD')
+        salary_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Salary')
         manual_count = sum(1 for m in all_matches if m.get('Match_Type') == 'Manual')
         
         updated_statistics = {
@@ -385,6 +404,7 @@ class MainWindow(QMainWindow):
             'lc_matches': lc_count,
             'po_matches': po_count,
             'interunit_matches': interunit_count,
+            'salary_matches': salary_count,
             'settlement_matches': settlement_count,
             'usd_matches': usd_count,
             'manual_matches': manual_count

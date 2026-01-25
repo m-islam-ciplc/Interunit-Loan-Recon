@@ -44,8 +44,11 @@ The GUI runs an automated matching process with the following steps:
 2. **LC Matching** 
 3. **PO Matching**
 4. **Interunit Matching**
-5. **USD Matching**
-6. **Aggregated PO Matching**
+5. **Salary Matching** (Salary/Remuneration + Month/Year, Festival Bonus + Eid/Year)
+6. **Final Settlement Matching**
+7. **USD Matching**
+
+See: `project_docs/SALARY_MATCHING_LOGIC.md`
 
 ## File Structure
 
